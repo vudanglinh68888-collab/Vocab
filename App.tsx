@@ -1,222 +1,355 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { VocabularyItem, Topic, TOPICS, StudyStats, ReadingPassage, QuizQuestion } from './types';
-import { generateDailySet, analyzeSpecificWord, getTutorAdvice, generateReadingPassages, generateQuiz } from './geminiService';
+import { VocabularyItem, Topic, TOPICS, StudyStats, ReadingPassage, User, ViewMode } from './types';
+import { generateDailySet, generateReadingPassages } from './geminiService';
 import VocabularyCard from './components/VocabularyCard';
 import ReadingSection from './components/ReadingSection';
-import QuizSection from './components/QuizSection';
 import ReviewSection from './components/ReviewSection';
+import LoginView from './components/LoginView';
+import WordGame from './components/WordGame';
+import QuizSection from './components/QuizSection';
+import ProfileView from './components/ProfileView';
 
 const App: React.FC = () => {
+  const [user, setUser] = useState<User | null>(null);
   const [vocabList, setVocabList] = useState<VocabularyItem[]>([]);
   const [passages, setPassages] = useState<ReadingPassage[]>([]);
-  const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>([]);
   const [loading, setLoading] = useState(false);
-  const [selectedTopic, setSelectedTopic] = useState<Topic>('Education');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [tutorAdvice, setTutorAdvice] = useState('Welcome back! Ready to conquer 5,000 words?');
-  const [viewMode, setViewMode] = useState<'all' | 'today' | 'review' | 'mastered' | 'quiz'>('today');
+  const [selectedTopic, setSelectedTopic] = useState<Topic | 'Random'>('Random');
+  const [selectedGrade, setSelectedGrade] = useState<number>(2);
+  const [viewMode, setViewMode] = useState<'today' | 'review' | 'mastered' | 'game' | 'quiz' | 'profile'>('today');
+  const [isTimerPaused, setIsTimerPaused] = useState(false);
+  const [currentTodayIdx, setCurrentTodayIdx] = useState(0);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
 
   const [stats, setStats] = useState<StudyStats>({
     totalLearned: 0,
     currentDay: 1,
     streak: 0,
     lastStudyDate: '',
-    quizScore: 0
+    quizScore: 0,
+    totalSeconds: 0,
+    history: []
   });
 
+  // Theo dõi trạng thái mạng
   useEffect(() => {
-    const savedVocab = localStorage.getItem('ielts-vocab-list');
-    const savedStats = localStorage.getItem('ielts-study-stats');
-    const savedPassages = localStorage.getItem('ielts-daily-passages');
-    if (savedVocab) setVocabList(JSON.parse(savedVocab));
-    if (savedStats) setStats(JSON.parse(savedStats));
-    if (savedPassages) setPassages(JSON.parse(savedPassages));
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
   }, []);
 
+  // Khôi phục phiên làm việc cuối cùng khi mở app
   useEffect(() => {
-    localStorage.setItem('ielts-vocab-list', JSON.stringify(vocabList));
-    localStorage.setItem('ielts-study-stats', JSON.stringify(stats));
-    localStorage.setItem('ielts-daily-passages', JSON.stringify(passages));
-  }, [vocabList, stats, passages]);
+    const lastSessionUser = localStorage.getItem('kid-english-current-session');
+    if (lastSessionUser) {
+      const userData = JSON.parse(lastSessionUser);
+      handleLogin(userData, userData.grade || 2);
+    }
+  }, []);
 
-  // Unified review collection based on nextReviewAt
-  const dueReviews = useMemo(() => {
-    const now = Date.now();
-    return vocabList.filter(i => !i.isMastered && i.nextReviewAt <= now);
-  }, [vocabList]);
+  const updateStreak = (currentStats: StudyStats) => {
+    const today = new Date().toLocaleDateString();
+    if (currentStats.lastStudyDate === today) return currentStats;
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = yesterday.toLocaleDateString();
+    let newStreak = currentStats.streak;
+    if (!currentStats.lastStudyDate) newStreak = 1;
+    else if (currentStats.lastStudyDate === yesterdayStr) newStreak += 1;
+    else newStreak = 1;
+    return { ...currentStats, streak: newStreak, lastStudyDate: today };
+  };
+
+  const handleLogin = (userData: User, grade: number) => {
+    const finalUser = { ...userData, grade };
+    setUser(finalUser);
+    setSelectedGrade(grade);
+    
+    // Lưu phiên hiện tại
+    localStorage.setItem('kid-english-current-session', JSON.stringify(finalUser));
+    
+    // Nạp dữ liệu riêng biệt của tài khoản này
+    const userKey = `kid-user-${userData.name.toLowerCase().trim()}`;
+    const savedVocab = localStorage.getItem(`${userKey}-vocab`);
+    const savedStats = localStorage.getItem(`${userKey}-stats`);
+    const savedPassages = localStorage.getItem(`${userKey}-passages`);
+    
+    if (savedVocab) {
+      setVocabList(JSON.parse(savedVocab));
+    } else {
+      setVocabList([]);
+    }
+
+    if (savedStats) {
+      setStats(updateStreak(JSON.parse(savedStats)));
+    } else {
+      setStats({
+        totalLearned: 0,
+        currentDay: 1,
+        streak: 0,
+        lastStudyDate: '',
+        quizScore: 0,
+        totalSeconds: 0,
+        history: []
+      });
+    }
+
+    if (savedPassages) {
+      setPassages(JSON.parse(savedPassages));
+    } else {
+      setPassages([]);
+    }
+  };
+
+  const handleLogout = () => {
+    setUser(null);
+    setVocabList([]);
+    setPassages([]);
+    localStorage.removeItem('kid-english-current-session');
+  };
+
+  const handleUpdateUser = (updatedUser: User) => {
+    setUser(updatedUser);
+    localStorage.setItem('kid-english-current-session', JSON.stringify(updatedUser));
+  };
+
+  // Timer thống kê thời gian học
+  useEffect(() => {
+    if (!user || isTimerPaused) return;
+    const interval = setInterval(() => {
+      setStats(prev => {
+        const today = new Date().toLocaleDateString();
+        const updatedHistory = [...prev.history];
+        const todayIndex = updatedHistory.findIndex(h => h.date === today);
+        if (todayIndex > -1) {
+          updatedHistory[todayIndex] = { ...updatedHistory[todayIndex], seconds: updatedHistory[todayIndex].seconds + 1 };
+        } else {
+          updatedHistory.push({ date: today, seconds: 1 });
+        }
+        return { ...prev, totalSeconds: prev.totalSeconds + 1, history: updatedHistory };
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [user, isTimerPaused]);
+
+  // Tự động lưu dữ liệu cho TỪNG TÀI KHOẢN khi có thay đổi
+  useEffect(() => {
+    if (!user) return;
+    const userKey = `kid-user-${user.name.toLowerCase().trim()}`;
+    localStorage.setItem(`${userKey}-vocab`, JSON.stringify(vocabList));
+    localStorage.setItem(`${userKey}-stats`, JSON.stringify(stats));
+    localStorage.setItem(`${userKey}-passages`, JSON.stringify(passages));
+  }, [vocabList, stats, passages, user]);
 
   const todayWords = useMemo(() => {
     const startOfToday = new Date().setHours(0,0,0,0);
-    return vocabList.filter(item => item.learnedAt >= startOfToday && !item.isMastered);
+    return vocabList.filter(item => item.learnedAt >= startOfToday);
+  }, [vocabList]);
+
+  const reviewDueWords = useMemo(() => {
+    const now = Date.now();
+    return vocabList.filter(item => !item.isMastered && item.nextReview <= now);
   }, [vocabList]);
 
   const masteredWords = useMemo(() => vocabList.filter(item => item.isMastered), [vocabList]);
 
   const handleStartDaily = async () => {
+    if (!isOnline) {
+      alert("Bé ơi, cần internet để tải bài học mới nhé! Bé có thể ôn tập các từ đã học ở chế độ ngoại tuyến.");
+      return;
+    }
     setLoading(true);
     try {
-      const newItems = await generateDailySet(selectedTopic, 12);
+      const topicToFetch = selectedTopic === 'Random' ? TOPICS[Math.floor(Math.random() * TOPICS.length)] : selectedTopic;
+      const newItems = await generateDailySet(topicToFetch, 8, selectedGrade);
       setVocabList(prev => [...newItems, ...prev]);
-      const newStats = { ...stats, totalLearned: stats.totalLearned + newItems.length, currentDay: stats.currentDay + 1 };
-      setStats(newStats);
-      setPassages(await generateReadingPassages(newItems.map(i => i.word)));
-      setTutorAdvice(await getTutorAdvice(newStats));
+      setStats(s => ({ ...s, totalLearned: s.totalLearned + newItems.length }));
+      const newPassages = await generateReadingPassages(newItems.map(i => i.word), selectedGrade);
+      setPassages(newPassages);
+      setCurrentTodayIdx(0);
       setViewMode('today');
-    } catch (err) { alert("Tutor is busy."); } finally { setLoading(false); }
+    } catch (err) { 
+      alert("Lỗi tải bài học! Bé thử lại hoặc chọn chủ đề khác nhé."); 
+    } finally { 
+      setLoading(false); 
+    }
   };
 
-  const handleStartQuiz = async () => {
-    if (vocabList.length < 5) { alert("Learn at least 5 words to start a quiz!"); return; }
-    setLoading(true);
-    try {
-      const questions = await generateQuiz(vocabList.slice(0, 15));
-      setQuizQuestions(questions);
-      setViewMode('quiz');
-    } catch (err) { alert("Failed to generate quiz."); } finally { setLoading(false); }
-  };
+  const formatDuration = (seconds: number) => `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
 
-  // SRS Interval Logic
-  // Level 0 -> +1 day
-  // Level 1 -> +3 days
-  // Level 2 -> +7 days
-  // Level 3 -> +30 days
-  // Level 4 -> Mastered
-  const updateSRS = (id: string, success: boolean) => {
-    setVocabList(prev => prev.map(item => {
-      if (item.id !== id) return item;
-      
-      const now = Date.now();
-      const oneDay = 24 * 60 * 60 * 1000;
-      const intervals = [oneDay, 3 * oneDay, 7 * oneDay, 30 * oneDay];
-      
-      let nextLevel = success ? Math.min(4, (item.srsLevel || 0) + 1) : 0;
-      let nextMastered = nextLevel === 4;
-      let nextReviewAt = success ? now + (intervals[nextLevel] || intervals[3]) : now + oneDay;
-
-      return {
-        ...item,
-        srsLevel: nextLevel,
-        isMastered: nextMastered,
-        nextReviewAt: nextReviewAt,
-        reviewCount: (item.reviewCount || 0) + 1
-      };
-    }));
-  };
-
-  const removeWord = (id: string) => {
-    setVocabList(prev => prev.filter(item => item.id !== id));
-    setStats(s => ({ ...s, totalLearned: Math.max(0, s.totalLearned - 1) }));
-  };
-
-  const toggleMastered = (id: string) => {
-    setVocabList(prev => prev.map(item => item.id === id ? { ...item, isMastered: !item.isMastered, srsLevel: !item.isMastered ? 4 : 0 } : item));
-  };
-
-  const filteredDisplay = useMemo(() => {
-    let base = vocabList;
-    if (viewMode === 'today') base = todayWords;
-    if (viewMode === 'mastered') base = masteredWords;
-    return base.filter(v => v.word.toLowerCase().includes(searchQuery.toLowerCase()));
-  }, [vocabList, viewMode, searchQuery, todayWords, masteredWords]);
+  if (!user) return <LoginView onLogin={handleLogin} />;
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col font-sans pb-20">
-      <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-xl border-b border-slate-200 shadow-sm">
-        <div className="max-w-[1800px] mx-auto px-6 h-20 flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-lg">
-              <i className="fas fa-user-tie text-xl"></i>
+    <div className="min-h-screen bg-amber-50 flex flex-col font-sans pb-20">
+      <div className="bg-slate-900 text-white sticky top-0 z-[60] shadow-xl">
+        {!isOnline && (
+          <div className="bg-amber-500 text-slate-900 text-[10px] font-black py-1 px-4 text-center uppercase tracking-widest flex items-center justify-center gap-2">
+            <i className="fas fa-plane-departure"></i> Chế độ ngoại tuyến: Dữ liệu của {user.name} đã được nạp!
+          </div>
+        )}
+        <div className="px-6 py-2 flex items-center justify-between">
+          <div className="flex items-center gap-4 flex-1">
+            <span className="text-[9px] font-black uppercase text-orange-400">Tiến trình của {user.name}:</span>
+            <div className="flex-1 h-2.5 bg-white/10 rounded-full overflow-hidden">
+              <div className="h-full bg-orange-500 transition-all duration-1000" style={{ width: `${Math.min(100, (stats.totalLearned / 5000) * 100)}%` }}></div>
             </div>
-            <div>
-              <h1 className="text-xl font-black text-slate-900 leading-none">IELTS <span className="text-indigo-600">ACADEMY</span></h1>
-              <p className="text-[10px] font-bold text-slate-400 tracking-widest uppercase mt-1">Spaced Repetition Mastery</p>
-            </div>
+            <span className="text-xs font-black">{stats.totalLearned}/5000</span>
+          </div>
+          <div className="ml-6 flex items-center gap-3">
+             <div className="text-emerald-400 font-mono font-bold text-xs">{formatDuration(stats.totalSeconds)}</div>
+             <button onClick={() => setViewMode('profile')} className="w-8 h-8 rounded-full overflow-hidden border border-white/20 hover:ring-2 ring-orange-500 transition-all">
+                <img src={user.avatar} className="w-full h-full object-cover" />
+             </button>
+             <button onClick={handleLogout} className="text-white/40 hover:text-white" title="Đăng xuất tài khoản"><i className="fas fa-sign-out-alt"></i></button>
+          </div>
+        </div>
+        <div className="px-6 pb-2 border-t border-white/5 flex gap-4">
+           <div className="flex items-center gap-1 text-orange-400">
+              <i className="fas fa-fire text-xs"></i>
+              <span className="text-[11px] font-black">{stats.streak} ngày</span>
+           </div>
+           <div className="flex items-center gap-1 text-blue-400">
+              <i className="fas fa-graduation-cap text-xs"></i>
+              <span className="text-[11px] font-black">Lớp {selectedGrade}</span>
+           </div>
+           <div className="ml-auto text-[9px] font-black text-slate-500 uppercase">Tài khoản: {user.name}</div>
+        </div>
+      </div>
+
+      <header className="bg-white border-b border-orange-100 px-6 h-auto md:h-24 py-4 flex flex-col md:flex-row items-center justify-between gap-4 shadow-sm">
+        <div className="flex items-center gap-3 cursor-pointer" onClick={() => setViewMode('today')}>
+          <div className="w-12 h-12 bg-orange-500 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-orange-200"><i className="fas fa-star text-xl"></i></div>
+          <div>
+            <h1 className="text-xl font-black tracking-tight leading-none">KidEnglish</h1>
+            <span className="text-[10px] font-black uppercase text-orange-500 tracking-widest">Magic Learning</span>
+          </div>
+        </div>
+        
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          <div className="flex items-center bg-orange-50 p-1.5 rounded-2xl border-2 border-orange-100 gap-1">
+             <div className="px-3 flex items-center gap-2">
+                <i className="fas fa-bookmark text-orange-400 text-xs"></i>
+                <select 
+                  value={selectedTopic}
+                  onChange={(e) => setSelectedTopic(e.target.value as Topic | 'Random')}
+                  className="bg-transparent border-none text-slate-700 text-xs font-black appearance-none cursor-pointer outline-none"
+                  disabled={!isOnline}
+                >
+                  <option value="Random">🎲 Ngẫu nhiên</option>
+                  {TOPICS.map(t => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+             </div>
+             <button 
+                onClick={handleStartDaily} 
+                disabled={loading || !isOnline} 
+                className={`px-4 py-2 bg-orange-500 text-white rounded-xl text-xs font-black shadow-md hover:bg-orange-600 transition-all active:scale-95 flex items-center gap-2 ${loading || !isOnline ? 'opacity-50' : ''}`}
+              >
+                {loading ? <i className="fas fa-spinner animate-spin"></i> : <i className="fas fa-rocket"></i>}
+                {isOnline ? 'Học bài mới' : 'Ngoại tuyến'}
+              </button>
           </div>
 
-          <div className="hidden lg:flex items-center bg-slate-100 rounded-2xl px-6 py-2 gap-8 border border-slate-200">
-             <div className="flex flex-col items-center">
-                <span className="text-[10px] font-black text-slate-400 uppercase">Mastered</span>
-                <span className="text-sm font-black text-emerald-600">{masteredWords.length}</span>
-             </div>
-             <div className="flex flex-col items-center">
-                <span className="text-[10px] font-black text-slate-400 uppercase">Total Items</span>
-                <span className="text-sm font-black text-slate-700">{stats.totalLearned}</span>
-             </div>
-          </div>
-
-          <div className="flex items-center space-x-3">
-            <button 
-              onClick={handleStartQuiz}
-              disabled={loading}
-              className="px-6 py-3 bg-white border border-indigo-200 text-indigo-600 rounded-xl text-sm font-black shadow-sm hover:bg-indigo-50 transition-all"
-            >
-              <i className="fas fa-brain mr-2"></i> Quiz
+          <div className="flex items-center gap-2 border-l-2 border-slate-100 pl-3">
+            <button onClick={() => setViewMode('game')} className="px-4 py-3 bg-purple-500 text-white rounded-2xl text-xs font-black shadow-lg shadow-purple-100 hover:bg-purple-600 transition-all active:scale-95 flex items-center gap-2">
+              <i className="fas fa-puzzle-piece"></i> Ghép Từ
             </button>
-            <button 
-              onClick={handleStartDaily}
-              disabled={loading}
-              className="px-6 py-3 bg-indigo-600 text-white rounded-xl text-sm font-black shadow-lg hover:bg-indigo-700 transition-all"
-            >
-              {loading ? <i className="fas fa-spinner fa-spin mr-2"></i> : <i className="fas fa-bolt mr-2"></i>}
-              Next Set
+            <button onClick={() => setViewMode('quiz')} className="px-4 py-3 bg-blue-500 text-white rounded-2xl text-xs font-black shadow-lg shadow-blue-100 hover:bg-blue-600 transition-all active:scale-95 flex items-center gap-2">
+              <i className="fas fa-feather-alt"></i> Kiểm tra
             </button>
           </div>
         </div>
       </header>
 
-      <main className="flex-grow max-w-[1800px] mx-auto px-6 py-10 w-full space-y-10">
-        
-        <div className="bg-white p-6 rounded-3xl border border-indigo-100 shadow-sm flex items-center gap-6">
-          <div className="w-14 h-14 rounded-full bg-indigo-50 flex-shrink-0 flex items-center justify-center border-2 border-white">
-             <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Felix" alt="Tutor" className="w-10 h-10" />
-          </div>
-          <p className="text-lg text-slate-700 font-medium italic">"{tutorAdvice}"</p>
-        </div>
-
-        <div className="flex bg-white p-2 rounded-2xl shadow-sm border border-slate-200 overflow-x-auto gap-2">
-             <button onClick={() => setViewMode('today')} className={`px-6 py-3 rounded-xl text-xs font-black uppercase transition-all ${viewMode === 'today' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}>Learning Today</button>
-             <button onClick={() => setViewMode('review')} className={`px-6 py-3 rounded-xl text-xs font-black uppercase transition-all ${viewMode === 'review' ? 'bg-rose-500 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}>Review Due ({dueReviews.length})</button>
-             <button onClick={() => setViewMode('mastered')} className={`px-6 py-3 rounded-xl text-xs font-black uppercase transition-all ${viewMode === 'mastered' ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}>Mastery Vault</button>
-             <button onClick={() => setViewMode('all')} className={`px-6 py-3 rounded-xl text-xs font-black uppercase transition-all ${viewMode === 'all' ? 'bg-slate-800 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}>Full Library</button>
-        </div>
-
-        {loading ? (
-             <div className="py-20 flex flex-col items-center">
-                <div className="w-16 h-16 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin mb-6"></div>
-                <p className="text-xl font-black text-slate-800">Updating Your Roadmap...</p>
-             </div>
+      <main className="flex-grow max-w-[1000px] mx-auto px-6 py-8 w-full">
+        {viewMode === 'profile' ? (
+          <ProfileView 
+            user={user} 
+            stats={stats} 
+            onUpdateUser={handleUpdateUser} 
+            onBack={() => setViewMode('today')} 
+          />
         ) : (
           <>
-            {viewMode === 'quiz' ? (
-              <QuizSection questions={quizQuestions} onFinish={(s) => { setStats(ps => ({ ...ps, quizScore: ps.quizScore + s })); setViewMode('today'); }} />
+            {viewMode !== 'game' && viewMode !== 'quiz' && (
+              <div className="flex bg-white p-2 rounded-3xl border-2 border-orange-100 gap-2 mb-10 shadow-sm max-w-md mx-auto">
+                <button onClick={() => { setViewMode('today'); setCurrentTodayIdx(0); }} className={`flex-1 py-3 rounded-2xl text-[10px] font-black uppercase transition-all ${viewMode === 'today' ? 'bg-orange-500 text-white shadow-lg' : 'text-slate-500 hover:bg-orange-50'}`}>Hôm nay ({todayWords.length})</button>
+                <button onClick={() => setViewMode('review')} className={`flex-1 py-3 rounded-2xl text-[10px] font-black uppercase transition-all ${viewMode === 'review' ? 'bg-rose-500 text-white shadow-lg' : 'text-slate-500 hover:bg-rose-50'}`}>Ôn tập ({reviewDueWords.length})</button>
+                <button onClick={() => setViewMode('mastered')} className={`flex-1 py-3 rounded-2xl text-[10px] font-black uppercase transition-all ${viewMode === 'mastered' ? 'bg-emerald-500 text-white shadow-lg' : 'text-slate-500 hover:bg-emerald-50'}`}>Đã thuộc</button>
+              </div>
+            )}
+
+            {viewMode === 'game' ? (
+              <div className="max-w-4xl mx-auto">
+                <WordGame vocabList={vocabList} onExit={() => setViewMode('today')} />
+              </div>
+            ) : viewMode === 'quiz' ? (
+              <QuizSection words={vocabList} onFinish={() => setViewMode('today')} />
             ) : viewMode === 'review' ? (
-              <div className="space-y-20">
-                <ReviewSection 
-                    words={dueReviews} 
-                    title="Spaced Repetition Session" 
-                    onResult={updateSRS}
-                    onComplete={() => setViewMode('today')}
-                />
-                {dueReviews.length === 0 && (
-                   <div className="text-center py-20 bg-white rounded-[3rem] border-2 border-dashed border-slate-200">
-                      <i className="fas fa-calendar-check text-5xl text-emerald-200 mb-6"></i>
-                      <h3 className="text-2xl font-black text-slate-800">Clear Roadmap!</h3>
-                      <p className="text-slate-400 mt-2">No reviews scheduled for right now. Go learn something new!</p>
-                   </div>
-                )}
+              <ReviewSection words={reviewDueWords} title="Vòng Quay Ôn Tập" onReviewComplete={(id, quality) => {
+                 // Spaced Repetition logic implementation
+              }} onPause={setIsTimerPaused} onExit={() => setViewMode('today')} />
+            ) : viewMode === 'today' && todayWords.length > 0 ? (
+              <div className="max-w-2xl mx-auto space-y-6">
+                <div className="flex justify-between items-center bg-white p-3 rounded-2xl border-2 border-orange-100 shadow-sm mb-4">
+                  <button onClick={() => setCurrentTodayIdx(Math.max(0, currentTodayIdx - 1))} disabled={currentTodayIdx === 0} className="flex items-center gap-2 px-4 py-2 text-slate-500 hover:bg-slate-50 rounded-xl font-black text-[10px] uppercase disabled:opacity-30">
+                      <i className="fas fa-chevron-left"></i> Quay lại
+                  </button>
+                  <button onClick={() => setIsTimerPaused(!isTimerPaused)} className={`flex items-center gap-2 px-4 py-2 rounded-xl font-black text-[10px] uppercase transition-all ${isTimerPaused ? 'bg-amber-100 text-amber-600' : 'text-slate-500 hover:bg-slate-50'}`}>
+                      <i className={`fas ${isTimerPaused ? 'fa-play' : 'fa-pause'}`}></i> {isTimerPaused ? 'Tiếp tục' : 'Tạm dừng'}
+                  </button>
+                  <button onClick={() => setViewMode('mastered')} className="flex items-center gap-2 px-4 py-2 text-rose-500 hover:bg-rose-50 rounded-xl font-black text-[10px] uppercase">
+                      <i className="fas fa-stop"></i> Dừng học
+                  </button>
+                </div>
+                
+                <div className={`transition-all duration-300 ${isTimerPaused ? 'blur-md pointer-events-none grayscale' : ''}`}>
+                  <VocabularyCard key={todayWords[currentTodayIdx].id} item={todayWords[currentTodayIdx]} />
+                  <div className="flex justify-center mt-6">
+                      {currentTodayIdx < todayWords.length - 1 ? (
+                        <button onClick={() => setCurrentTodayIdx(currentTodayIdx + 1)} className="px-12 py-5 bg-orange-500 text-white rounded-[2rem] font-black shadow-xl hover:scale-105 hover:bg-orange-600 transition-all">Từ tiếp theo <i className="fas fa-arrow-right ml-2"></i></button>
+                      ) : (
+                        <button onClick={() => setViewMode('today')} className="px-12 py-5 bg-emerald-500 text-white rounded-[2rem] font-black shadow-xl hover:scale-105 hover:bg-emerald-600 transition-all">Hoàn thành bài học! 🏆</button>
+                      )}
+                  </div>
+                </div>
+                
+                {passages.length > 0 && <ReadingSection passages={passages} />}
               </div>
             ) : (
               <div className="space-y-6">
-                {filteredDisplay.map(item => (
-                  <VocabularyCard key={item.id} item={item} onRemove={removeWord} onToggleMastered={toggleMastered} />
+                {(viewMode === 'mastered' ? masteredWords : vocabList).map(item => (
+                  <VocabularyCard key={item.id} item={item} />
                 ))}
-                {viewMode === 'today' && passages.length > 0 && <ReadingSection passages={passages} />}
+                {vocabList.length === 0 && (
+                  <div className="text-center py-24 bg-white/40 rounded-[4rem] border-4 border-dashed border-orange-100">
+                      <div className="text-7xl mb-6">🎒</div>
+                      <h3 className="text-2xl font-black text-slate-800">Bắt đầu hành trình nào!</h3>
+                      <p className="text-sm font-bold text-slate-400 mt-2 max-w-xs mx-auto">Chào mừng {user.name}, hãy chọn chủ đề bé yêu thích phía trên và nhấn "Học bài mới" nhé!</p>
+                  </div>
+                )}
               </div>
             )}
           </>
         )}
       </main>
+
+      {isTimerPaused && (
+        <div className="fixed inset-0 z-[100] bg-orange-500/80 backdrop-blur-sm flex items-center justify-center p-6 text-center text-white">
+          <div className="animate-scaleIn space-y-6">
+              <div className="text-8xl">☕</div>
+              <h2 className="text-4xl font-black">Đang tạm nghỉ...</h2>
+              <button onClick={() => setIsTimerPaused(false)} className="px-10 py-4 bg-white text-orange-600 rounded-2xl text-xl font-black shadow-2xl transition-all">Tiếp tục học thôi!</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

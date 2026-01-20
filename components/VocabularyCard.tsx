@@ -1,216 +1,129 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { VocabularyItem } from '../types';
 
 interface Props {
   item: VocabularyItem;
-  onRemove?: (id: string) => void;
-  onToggleMastered?: (id: string) => void;
 }
 
-const VocabularyCard: React.FC<Props> = ({ item, onRemove, onToggleMastered }) => {
-  const daysSinceLearned = Math.floor((Date.now() - item.learnedAt) / (1000 * 60 * 60 * 24));
-  
-  const getReviewTag = () => {
-    if (item.isMastered) return null;
-    if (daysSinceLearned === 3) return { label: '3-Day Review', color: 'bg-amber-500' };
-    if (daysSinceLearned === 7) return { label: 'Weekly Review', color: 'bg-indigo-500' };
-    if (daysSinceLearned === 30) return { label: 'Monthly Review', color: 'bg-violet-500' };
-    return null;
+const VocabularyCard: React.FC<Props> = ({ item }) => {
+  const [isListening, setIsListening] = useState(false);
+  const [feedback, setFeedback] = useState<{ text: string, type: 'success' | 'error' | null }>({ text: '', type: null });
+
+  const speak = (text: string) => {
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'en-US';
+    utterance.rate = 0.8;
+    window.speechSynthesis.speak(utterance);
   };
 
-  const reviewTag = getReviewTag();
+  const startListening = () => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert("Trình duyệt của bạn không hỗ trợ nhận diện giọng nói.");
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'en-US';
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+
+    recognition.onstart = () => {
+      setIsListening(true);
+      setFeedback({ text: 'Bé đọc đi nào...', type: null });
+    };
+
+    recognition.onresult = (event: any) => {
+      const speechToText = event.results[0][0].transcript.toLowerCase().replace(/[.,/#!$%^&*;:{}=\-_`~()]/g,"");
+      const targetWord = item.word.toLowerCase().replace(/[.,/#!$%^&*;:{}=\-_`~()]/g,"");
+
+      if (speechToText === targetWord) {
+        setFeedback({ text: '🌟 Tuyệt quá! Bé phát âm đúng rồi!', type: 'success' });
+        // Phát âm thanh chúc mừng nhỏ
+        const audio = new Audio('https://www.soundjay.com/buttons/sounds/button-37a.mp3');
+        audio.play().catch(() => {});
+      } else {
+        setFeedback({ text: `Bé đọc là "${speechToText}", thử lại nhé!`, type: 'error' });
+      }
+    };
+
+    recognition.onerror = () => {
+      setFeedback({ text: 'Gấu không nghe rõ, bé thử lại nhé!', type: 'error' });
+      setIsListening(false);
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+    };
+
+    recognition.start();
+  };
 
   return (
-    <div className={`bg-white rounded-[2.5rem] shadow-sm border overflow-hidden transition-all duration-300 hover:shadow-xl group mb-6 ${item.isMastered ? 'border-emerald-200 bg-emerald-50/10' : 'border-slate-200 hover:border-indigo-200'}`}>
-      {/* Header Row */}
-      <div className={`${item.isMastered ? 'bg-emerald-900' : 'bg-slate-900'} p-8 text-white flex flex-col md:flex-row justify-between items-center gap-6 transition-colors duration-500`}>
-        <div className="flex items-center gap-8">
-          <div className={`flex flex-col items-center justify-center w-20 h-20 rounded-3xl shadow-lg transition-colors ${item.isMastered ? 'bg-emerald-600 shadow-emerald-900/50' : 'bg-indigo-600 shadow-indigo-900/50'}`}>
-             <span className="text-[10px] font-black uppercase tracking-widest opacity-70">Level</span>
-             <span className="text-2xl font-black">{item.cefr}</span>
+    <div className={`bg-white rounded-[2rem] shadow-xl border-4 overflow-hidden transition-all duration-300 ${item.isMastered ? 'border-emerald-200' : 'border-orange-100'}`}>
+      <div className={`${item.isMastered ? 'bg-emerald-500' : 'bg-orange-500'} p-6 text-white flex justify-between items-center`}>
+        <div className="flex items-center gap-5">
+          <div className="w-14 h-14 bg-white/20 rounded-2xl flex flex-col items-center justify-center border-2 border-white/30 backdrop-blur-sm">
+             <span className="text-[8px] font-black uppercase opacity-80">Lớp</span>
+             <span className="text-xl font-black">{item.grade}</span>
           </div>
           <div>
-            <div className="flex items-center gap-4 flex-wrap">
-              <h2 className="text-5xl font-serif font-black tracking-tight text-white">{item.word}</h2>
-              {item.isMastered && (
-                <span className="bg-emerald-500 text-white px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-1 shadow-lg shadow-emerald-900/40">
-                  <i className="fas fa-check-circle"></i> Mastered
-                </span>
-              )}
-              {reviewTag && !item.isMastered && (
-                <span className={`${reviewTag.color} text-white px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest animate-pulse`}>
-                  {reviewTag.label}
-                </span>
-              )}
-              <button 
-                onClick={() => {
-                  const utterance = new SpeechSynthesisUtterance(item.word);
-                  utterance.lang = 'en-US';
-                  window.speechSynthesis.speak(utterance);
-                }}
-                className="w-12 h-12 rounded-2xl bg-white/10 flex items-center justify-center hover:bg-indigo-500 transition-all active:scale-90"
-              >
-                <i className="fas fa-volume-up text-xl"></i>
-              </button>
-            </div>
-            <div className="flex items-center gap-3 mt-2">
-               <p className="text-indigo-300 font-mono text-xl font-bold">{item.ipa}</p>
-               <span className="w-1 h-1 bg-slate-700 rounded-full"></span>
-               <span className="text-slate-400 font-black text-xs uppercase tracking-widest">{item.topic}</span>
-               <span className="w-1 h-1 bg-slate-700 rounded-full"></span>
-               <span className="text-slate-500 text-xs italic">Learned {daysSinceLearned === 0 ? 'today' : `${daysSinceLearned}d ago`}</span>
-            </div>
-          </div>
-        </div>
-        
-        <div className="flex items-center gap-3">
-          {onToggleMastered && (
-            <button 
-              onClick={() => onToggleMastered(item.id)}
-              className={`flex items-center gap-2 px-6 py-3 rounded-2xl text-sm font-black transition-all ${item.isMastered ? 'bg-white text-emerald-900' : 'bg-emerald-500 text-white hover:bg-emerald-600'}`}
-              title={item.isMastered ? "Return to active study" : "Mark as Mastered"}
-            >
-              <i className={`fas ${item.isMastered ? 'fa-undo' : 'fa-check'}`}></i>
-              {item.isMastered ? 'Unmaster' : 'Mastered'}
-            </button>
-          )}
-          {onRemove && (
-            <button 
-              onClick={() => onRemove(item.id)}
-              className="w-12 h-12 flex items-center justify-center rounded-2xl bg-white/5 text-white/50 hover:bg-rose-500 hover:text-white transition-all border border-white/10"
-              title="Forget word"
-            >
-              <i className="fas fa-trash-alt"></i>
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Main 4-Column Content */}
-      <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 divide-y md:divide-y-0 lg:divide-x divide-slate-100 ${item.isMastered ? 'opacity-70' : ''}`}>
-        
-        {/* COL 1: Basic Info */}
-        <div className="p-10 bg-white">
-          <h4 className="text-[10px] font-black text-indigo-600 uppercase tracking-[0.2em] mb-6 flex items-center">
-            <span className="w-2 h-2 bg-indigo-500 rounded-full mr-3"></span> Basic Knowledge
-          </h4>
-          <div className="space-y-6">
-            <div>
-              <p className="text-slate-900 leading-relaxed font-bold text-xl mb-2">{item.definition}</p>
-              <div className="inline-block px-3 py-1 bg-indigo-50 text-indigo-700 rounded-lg font-bold text-sm">
-                VN: {item.vietnameseDefinition}
+            <div className="flex items-center gap-4">
+              <h2 className="text-3xl font-black tracking-tight">{item.word}</h2>
+              <div className="flex gap-2">
+                <button 
+                  onClick={() => speak(item.word)}
+                  className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center hover:bg-white/40 transition-all shadow-sm"
+                  title="Nghe phát âm"
+                >
+                  <i className="fas fa-volume-up"></i>
+                </button>
+                <button 
+                  onClick={startListening}
+                  className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all shadow-sm ${isListening ? 'bg-red-500 animate-pulse' : 'bg-white/20 hover:bg-white/40'}`}
+                  title="Tập đọc"
+                >
+                  <i className={`fas ${isListening ? 'fa-microphone' : 'fa-microphone-alt'}`}></i>
+                </button>
               </div>
             </div>
-            <div className="pt-6 border-t border-slate-50">
-              <h5 className="text-[10px] font-black text-slate-300 uppercase mb-3">Usage Example</h5>
-              <p className="text-slate-600 italic border-l-4 border-slate-200 pl-5 text-base leading-relaxed">
-                "{item.example}"
-              </p>
-            </div>
+            <p className="font-mono font-bold text-sm opacity-90 mt-1">/{item.ipa}/</p>
+          </div>
+        </div>
+        <span className="text-[10px] font-black uppercase tracking-widest bg-black/10 px-3 py-1 rounded-full">{item.topic}</span>
+      </div>
+
+      {feedback.text && (
+        <div className={`px-6 py-3 text-center text-sm font-black animate-fadeIn ${feedback.type === 'success' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
+          {feedback.text}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-orange-50">
+        <div className="p-6 space-y-4">
+          <div>
+            <h4 className="text-[10px] font-black text-orange-400 uppercase mb-1">Nghĩa tiếng Việt</h4>
+            <p className="text-2xl font-black text-slate-800">{item.vietnameseDefinition}</p>
+          </div>
+          <div className="pt-4 border-t border-orange-50">
+            <h4 className="text-[10px] font-black text-blue-400 uppercase mb-2">Ví dụ vui</h4>
+            <p className="text-slate-700 font-bold italic text-base leading-relaxed bg-blue-50 p-4 rounded-2xl border-l-4 border-blue-400">
+              "{item.example}"
+            </p>
           </div>
         </div>
 
-        {/* COL 2: Memory Hints */}
-        <div className="p-10 bg-slate-50/30">
-          <h4 className="text-[10px] font-black text-amber-600 uppercase tracking-[0.2em] mb-6 flex items-center">
-            <span className="w-2 h-2 bg-amber-500 rounded-full mr-3"></span> Memory Anchor
-          </h4>
-          
-          <div className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm mb-6">
-            <div className="flex justify-around items-center mb-4">
-               <div className="text-center">
-                 <div className="text-[9px] text-slate-400 font-black mb-1">PRE</div>
-                 <div className="text-lg font-black text-slate-800">{item.rootAnalysis.prefix || '-'}</div>
-               </div>
-               <div className="w-px h-8 bg-slate-100"></div>
-               <div className="text-center">
-                 <div className="text-[9px] text-slate-400 font-black mb-1">ROOT</div>
-                 <div className="text-lg font-black text-indigo-600">{item.rootAnalysis.root}</div>
-               </div>
-               <div className="w-px h-8 bg-slate-100"></div>
-               <div className="text-center">
-                 <div className="text-[9px] text-slate-400 font-black mb-1">SUF</div>
-                 <div className="text-lg font-black text-slate-800">{item.rootAnalysis.suffix || '-'}</div>
-               </div>
-            </div>
-            <p className="text-xs text-slate-500 italic leading-relaxed text-center pt-2">
-              {item.rootAnalysis.explanation}
-            </p>
-          </div>
-
-          <div className="bg-amber-100/40 p-6 rounded-[2rem] border border-amber-200/50 relative group/hint">
-            <i className="fas fa-lightbulb absolute right-4 top-4 text-amber-300 text-2xl group-hover/hint:scale-125 transition-transform"></i>
-            <h5 className="text-[10px] font-black text-amber-800 uppercase mb-3 tracking-widest">Mnemonic Trick</h5>
-            <p className="text-sm text-amber-900 leading-relaxed font-bold">
+        <div className="p-6 bg-orange-50/20 space-y-4">
+          <div className="bg-white p-4 rounded-2xl shadow-sm border border-orange-100">
+            <h4 className="text-[10px] font-black text-amber-600 uppercase mb-1">Mẹo siêu nhớ 💡</h4>
+            <p className="text-sm font-bold text-slate-800 leading-relaxed italic">
               {item.mnemonicHint}
             </p>
           </div>
-        </div>
-
-        {/* COL 3: IELTS Strategy */}
-        <div className="p-10 bg-white">
-          <h4 className="text-[10px] font-black text-emerald-600 uppercase tracking-[0.2em] mb-6 flex items-center">
-            <span className="w-2 h-2 bg-emerald-500 rounded-full mr-3"></span> Strategic Links
-          </h4>
-          
-          <div className="space-y-8">
-            <div>
-              <h5 className="text-[10px] font-black text-emerald-700 uppercase mb-3 tracking-tighter">Academic Alternatives</h5>
-              <div className="flex flex-wrap gap-2">
-                {item.synonyms.map((s, i) => (
-                  <span key={i} className="px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-xl text-xs font-black border border-emerald-100 hover:bg-emerald-600 hover:text-white transition-colors cursor-default">
-                    {s}
-                  </span>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <h5 className="text-[10px] font-black text-rose-700 uppercase mb-3 tracking-tighter">Direct Opposites</h5>
-              <div className="flex flex-wrap gap-2">
-                {item.antonyms.map((a, i) => (
-                  <span key={i} className="px-3 py-1.5 bg-rose-50 text-rose-700 rounded-xl text-xs font-black border border-rose-100 hover:bg-rose-600 hover:text-white transition-colors cursor-default">
-                    {a}
-                  </span>
-                ))}
-              </div>
-            </div>
-
-            <div className="p-5 bg-indigo-50/50 rounded-2xl border border-indigo-100 flex gap-4">
-               <i className="fas fa-award text-indigo-400 text-xl"></i>
-               <p className="text-xs text-indigo-800 leading-relaxed font-bold">
-                 Use this to boost Lexical Resource in Writing Task 2 essays.
-               </p>
-            </div>
-          </div>
-        </div>
-
-        {/* COL 4: Paraphrasing Vault */}
-        <div className="p-10 bg-slate-50/30">
-          <h4 className="text-[10px] font-black text-violet-600 uppercase tracking-[0.2em] mb-6 flex items-center">
-            <span className="w-2 h-2 bg-violet-500 rounded-full mr-3"></span> Re-writing Vault
-          </h4>
-          
-          <div className="space-y-4">
-            {item.ieltsParaphrases.map((p, i) => (
-              <div key={i} className="group/p flex items-center p-4 bg-white border border-slate-200 rounded-2xl shadow-sm hover:border-violet-500 transition-all">
-                <div className="w-8 h-8 rounded-xl bg-violet-50 flex items-center justify-center text-violet-600 mr-4 text-xs font-black group-hover/p:bg-violet-600 group-hover/p:text-white transition-colors">
-                  {i + 1}
-                </div>
-                <span className="text-sm text-slate-800 font-bold leading-snug">{p}</span>
-              </div>
-            ))}
-          </div>
-          
-          <div className="mt-10 pt-8 border-t border-slate-200 flex items-center gap-3">
-             <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
-                <i className="fas fa-file-alt"></i>
-             </div>
-             <div>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Reading Patterns</p>
-                <p className="text-[11px] font-bold text-slate-500 italic leading-none">Frequently tested in matching features</p>
-             </div>
+          <div className="flex justify-between items-center text-[10px] font-black uppercase text-slate-400">
+             <span>Lần ôn tới: {new Date(item.nextReview).toLocaleDateString()}</span>
+             {item.interval > 0 && <span>Khoảng cách: {item.interval} ngày</span>}
           </div>
         </div>
       </div>

@@ -1,8 +1,10 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
-import { VocabularyItem, Topic, ReadingPassage, QuizQuestion } from "./types";
+// Removed QuizQuestion as it is not exported from types.ts
+import { VocabularyItem, Topic, ReadingPassage } from "./types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+// Always use named parameter for apiKey and use process.env.API_KEY directly
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 const VOCAB_SCHEMA = {
   type: Type.OBJECT,
@@ -12,7 +14,7 @@ const VOCAB_SCHEMA = {
     definition: { type: Type.STRING },
     vietnameseDefinition: { type: Type.STRING },
     example: { type: Type.STRING },
-    cefr: { type: Type.STRING, enum: ['B2', 'C1'] },
+    grade: { type: Type.INTEGER },
     topic: { type: Type.STRING },
     rootAnalysis: {
       type: Type.OBJECT,
@@ -26,13 +28,11 @@ const VOCAB_SCHEMA = {
     },
     synonyms: { type: Type.ARRAY, items: { type: Type.STRING } },
     antonyms: { type: Type.ARRAY, items: { type: Type.STRING } },
-    ieltsParaphrases: { type: Type.ARRAY, items: { type: Type.STRING } },
-    mnemonicHint: { type: Type.STRING }
+    mnemonicHint: { type: Type.STRING, description: 'Giải thích mẹo ghi nhớ bằng tiếng Việt một cách hài hước và dễ nhớ cho trẻ em' }
   },
   required: [
     'word', 'ipa', 'definition', 'vietnameseDefinition', 'example', 
-    'cefr', 'topic', 'rootAnalysis', 'synonyms', 'antonyms', 
-    'ieltsParaphrases', 'mnemonicHint'
+    'grade', 'topic', 'rootAnalysis', 'synonyms', 'antonyms', 'mnemonicHint'
   ]
 };
 
@@ -41,115 +41,63 @@ const BATCH_SCHEMA = {
   items: VOCAB_SCHEMA
 };
 
-const PASSAGE_SCHEMA = {
-  type: Type.ARRAY,
-  items: {
-    type: Type.OBJECT,
-    properties: {
-      title: { type: Type.STRING },
-      contentEn: { type: Type.STRING },
-      contentVi: { type: Type.STRING }
-    },
-    required: ['title', 'contentEn', 'contentVi']
-  }
-};
-
-const QUIZ_SCHEMA = {
-  type: Type.ARRAY,
-  items: {
-    type: Type.OBJECT,
-    properties: {
-      id: { type: Type.STRING },
-      type: { type: Type.STRING, enum: ['multiple-choice', 'context-fill'] },
-      question: { type: Type.STRING },
-      options: { type: Type.ARRAY, items: { type: Type.STRING } },
-      correctAnswer: { type: Type.STRING },
-      explanation: { type: Type.STRING },
-      wordId: { type: Type.STRING }
-    },
-    required: ['id', 'type', 'question', 'correctAnswer', 'explanation', 'wordId']
-  }
-};
-
-export const generateDailySet = async (topic: Topic, count: number = 10): Promise<VocabularyItem[]> => {
+export const generateDailySet = async (topic: Topic, count: number = 8, grade: number = 2): Promise<VocabularyItem[]> => {
+  // Use 'gemini-3-flash-preview' for basic generation tasks
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
-    contents: `Acting as a professional IELTS Tutor, generate a list of ${count} high-level (B2-C1) academic words for the topic: ${topic}. 
-    Each word must have detailed etymology, mnemonics, and specific IELTS paraphrases.`,
+    contents: `Bạn là giáo viên tiếng Anh cho trẻ em Việt Nam. Hãy tạo danh sách ${count} từ vựng tiếng Anh chủ đề ${topic} phù hợp cho học sinh Lớp ${grade}. 
+    - Giải thích từ vựng đơn giản.
+    - PHẦN mnemonicHint PHẢI LÀ TIẾNG VIỆT, dùng hình ảnh liên tưởng vui nhộn.
+    - Phân tích root (gốc từ) nếu có.`,
     config: {
       responseMimeType: "application/json",
       responseSchema: BATCH_SCHEMA,
     },
   });
 
-  const data = JSON.parse(response.text);
-  const now = Date.now();
-  const oneDay = 24 * 60 * 60 * 1000;
-  
+  // Use response.text property directly
+  const data = JSON.parse(response.text.trim());
   return data.map((item: any) => ({
     ...item,
     id: Math.random().toString(36).substr(2, 9),
-    learnedAt: now,
+    learnedAt: Date.now(),
     reviewCount: 0,
-    srsLevel: 0,
-    nextReviewAt: now + oneDay // First review in 1 day
+    grade: grade,
+    interval: 0,
+    easiness: 2.5,
+    nextReview: Date.now()
   }));
 };
 
-export const generateReadingPassages = async (words: string[]): Promise<ReadingPassage[]> => {
+export const generateReadingPassages = async (words: string[], grade: number = 2): Promise<ReadingPassage[]> => {
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
-    contents: `Write 2 short IELTS-style passages (100-150 words) using these words: ${words.join(', ')}. Include Vietnamese translations.`,
+    contents: `Viết 2 mẩu chuyện ngắn vui nhộn cho học sinh lớp ${grade} sử dụng các từ: ${words.join(', ')}.`,
     config: {
       responseMimeType: "application/json",
-      responseSchema: PASSAGE_SCHEMA,
+      responseSchema: {
+        type: Type.ARRAY,
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            title: { type: Type.STRING },
+            contentEn: { type: Type.STRING },
+            contentVi: { type: Type.STRING }
+          },
+          required: ['title', 'contentEn', 'contentVi']
+        }
+      },
     },
   });
-  return JSON.parse(response.text);
-};
-
-export const generateQuiz = async (words: VocabularyItem[]): Promise<QuizQuestion[]> => {
-  const wordDetails = words.map(w => `${w.word} (Def: ${w.definition}, VN: ${w.vietnameseDefinition}, Ex: ${w.example})`).join('; ');
-  const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
-    contents: `Generate a 5-question IELTS vocabulary quiz based on these words: ${wordDetails}. 
-    Mix 'multiple-choice' (meaning/synonym) and 'context-fill' (fill in the sentence). 
-    For 'multiple-choice', provide 4 options. For 'context-fill', the correctAnswer is the word itself. 
-    Ensure distractors are plausible for B2-C1 level.`,
-    config: {
-      responseMimeType: "application/json",
-      responseSchema: QUIZ_SCHEMA,
-    },
-  });
-  return JSON.parse(response.text);
+  // Use response.text property directly
+  return JSON.parse(response.text.trim());
 };
 
 export const getTutorAdvice = async (stats: any): Promise<string> => {
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
-    contents: `Acting as a motivational IELTS Tutor, give a brief (2-sentence) advice to a student who has learned ${stats.totalLearned} words and is on day ${stats.currentDay}.`,
+    contents: `Bạn là chú Gấu Tutor thông thái. Hãy nhắn nhủ một câu cổ vũ cực kỳ đáng yêu cho bé đã học được ${stats.totalLearned} từ.`,
   });
+  // Use response.text property directly
   return response.text;
-};
-
-export const analyzeSpecificWord = async (word: string): Promise<VocabularyItem> => {
-  const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
-    contents: `Analyze: "${word}". Provide root, prefix, suffix, mnemonic, synonyms, antonyms, and IELTS paraphrase examples.`,
-    config: {
-      responseMimeType: "application/json",
-      responseSchema: VOCAB_SCHEMA,
-    },
-  });
-  const data = JSON.parse(response.text);
-  const now = Date.now();
-  const oneDay = 24 * 60 * 60 * 1000;
-  return { 
-    ...data, 
-    id: Math.random().toString(36).substr(2, 9), 
-    learnedAt: now, 
-    reviewCount: 0,
-    srsLevel: 0,
-    nextReviewAt: now + oneDay
-  };
 };

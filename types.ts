@@ -13,18 +13,18 @@ export interface VocabularyItem {
   definition: string;
   vietnameseDefinition: string;
   example: string;
-  cefr: 'B2' | 'C1';
+  grade: number; 
   topic: string;
   rootAnalysis: RootAnalysis;
   synonyms: string[];
   antonyms: string[];
-  ieltsParaphrases: string[]; 
   mnemonicHint: string;
-  learnedAt: number;
+  learnedAt: number; 
   reviewCount: number;
   isMastered?: boolean;
-  srsLevel: number; // 0 to 4 (4 is mastered)
-  nextReviewAt: number; // timestamp for next scheduled review
+  interval: number;
+  easiness: number;
+  nextReview: number;
 }
 
 export interface ReadingPassage {
@@ -33,37 +33,68 @@ export interface ReadingPassage {
   contentVi: string;
 }
 
-export interface QuizQuestion {
-  id: string;
-  type: 'multiple-choice' | 'context-fill';
-  question: string;
-  options?: string[];
-  correctAnswer: string;
-  explanation: string;
-  wordId: string;
-}
-
 export interface StudyStats {
   totalLearned: number;
   currentDay: number;
   streak: number;
   lastStudyDate: string;
   quizScore: number;
+  totalSeconds: number;
+  history: { date: string; seconds: number }[];
 }
 
 export type Topic = 
-  | 'Education' | 'Environment' | 'Technology' | 'Health' | 'Society' 
-  | 'Economy' | 'Art' | 'Psychology' | 'Work' | 'Travel' 
-  | 'Media' | 'Crime' | 'Government' | 'Culture' | 'Science' 
-  | 'Communication' | 'Food' | 'Sport' | 'History' | 'Housing' 
-  | 'Advertising' | 'Youth' | 'Elderly' | 'Globalization' | 'Transport' 
-  | 'Energy' | 'Fashion' | 'Law' | 'Family' | 'Personalities';
+  | 'Family' | 'School' | 'Animals' | 'Colors' | 'Toys' 
+  | 'Hobbies' | 'Fruits' | 'Sports' | 'Nature' | 'Superheroes' 
+  | 'Space' | 'Ocean' | 'Dressing' | 'Food' | 'Daily Routine';
 
 export const TOPICS: Topic[] = [
-  'Education', 'Environment', 'Technology', 'Health', 'Society', 
-  'Economy', 'Art', 'Psychology', 'Work', 'Travel', 
-  'Media', 'Crime', 'Government', 'Culture', 'Science', 
-  'Communication', 'Food', 'Sport', 'History', 'Housing', 
-  'Advertising', 'Youth', 'Elderly', 'Globalization', 'Transport', 
-  'Energy', 'Fashion', 'Law', 'Family', 'Personalities'
+  'Family', 'School', 'Animals', 'Colors', 'Toys', 
+  'Hobbies', 'Fruits', 'Sports', 'Nature', 'Superheroes', 
+  'Space', 'Ocean', 'Dressing', 'Food', 'Daily Routine'
 ];
+
+export interface Badge {
+  id: string;
+  name: string;
+  icon: string;
+  description: string;
+  unlocked: boolean;
+}
+
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  avatar: string;
+  status: 'online' | 'offline' | 'away';
+  preferences?: {
+    dailyGoal: number;
+    reminders: boolean;
+    soundEnabled: boolean;
+  };
+}
+
+export enum ViewMode {
+  HOME = 'home',
+  CHATS = 'chats',
+  SETTINGS = 'settings',
+  PROFILE = 'profile'
+}
+
+export interface Contact {
+  id: string;
+  name: string;
+  avatar: string;
+  lastMessage: string;
+  lastSeen?: string;
+  isAI?: boolean;
+}
+
+export interface Message {
+  id: string;
+  senderId: string;
+  text: string;
+  timestamp: Date;
+  isMe: boolean;
+}
