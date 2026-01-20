@@ -1,21 +1,26 @@
 
 import React, { useState, useRef } from 'react';
-import { User, StudyStats, Badge } from '../types';
+import { User, StudyStats, Badge, VocabularyItem, ReadingPassage } from '../types';
 
 interface Props {
   user: User;
   stats: StudyStats;
   onUpdateUser: (updatedUser: User) => void;
   onBack: () => void;
+  // Bổ sung các props để quản lý dữ liệu toàn cục
+  vocabList?: VocabularyItem[];
+  passages?: ReadingPassage[];
+  onImportData?: (data: any) => void;
 }
 
-const ProfileView: React.FC<Props> = ({ user, stats, onUpdateUser, onBack }) => {
+const ProfileView: React.FC<Props> = ({ user, stats, onUpdateUser, onBack, vocabList, passages, onImportData }) => {
   const [isEditingAvatar, setIsEditingAvatar] = useState(false);
   const [avatarSeed, setAvatarSeed] = useState(user.name);
   const [previewUrl, setPreviewUrl] = useState(user.avatar);
   const [selectedDayInfo, setSelectedDayInfo] = useState<{date: string, seconds: number} | null>(null);
   const [dailyGoal, setDailyGoal] = useState(user.preferences?.dailyGoal || 10);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const importInputRef = useRef<HTMLInputElement>(null);
 
   const badges: Badge[] = [
     { id: '1', name: 'Mầm Non', icon: '🌱', description: 'Học 10 từ đầu tiên', unlocked: stats.totalLearned >= 10 },
@@ -24,6 +29,53 @@ const ProfileView: React.FC<Props> = ({ user, stats, onUpdateUser, onBack }) => 
     { id: '4', name: 'Cỗ Máy Thời Gian', icon: '⏳', description: 'Học trên 1 giờ', unlocked: stats.totalSeconds >= 3600 },
     { id: '5', name: 'Siêu Cấp VIP', icon: '👑', description: 'Đạt chuỗi 7 ngày học', unlocked: stats.streak >= 7 },
   ];
+
+  const handleExportData = () => {
+    const dataToExport = {
+      user,
+      stats,
+      vocabList,
+      passages,
+      exportDate: new Date().toISOString(),
+      app: "KidEnglish Magic"
+    };
+    
+    const blob = new Blob([JSON.stringify(dataToExport, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `KidEnglish_Backup_${user.name}_${new Date().toLocaleDateString().replace(/\//g, '-')}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportClick = () => {
+    importInputRef.current?.click();
+  };
+
+  const handleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const importedData = JSON.parse(event.target?.result as string);
+        if (importedData.app !== "KidEnglish Magic") {
+          throw new Error("Tệp tin không đúng định dạng KidEnglish!");
+        }
+        if (onImportData) {
+          onImportData(importedData);
+          alert("Tuyệt vời! Dữ liệu của bé đã được khôi phục thành công.");
+        }
+      } catch (err) {
+        alert("Lỗi: Tệp tin không hợp lệ hoặc bị hỏng.");
+      }
+    };
+    reader.readAsText(file);
+  };
 
   const handleSaveAvatar = () => {
     onUpdateUser({
@@ -38,7 +90,7 @@ const ProfileView: React.FC<Props> = ({ user, stats, onUpdateUser, onBack }) => 
     onUpdateUser({
       ...user,
       preferences: {
-        ...(user.preferences || { reminders: true, soundEnabled: true }),
+        ...(user.preferences || { reminders: true, soundEnabled: true, dailyGoal: 10 }),
         dailyGoal: val
       }
     });
@@ -153,6 +205,49 @@ const ProfileView: React.FC<Props> = ({ user, stats, onUpdateUser, onBack }) => 
              <span>Vừa sức</span>
              <span>Chăm chỉ (30 từ)</span>
           </div>
+        </div>
+      </div>
+
+      {/* Dữ liệu & Học Offline */}
+      <div className="bg-white rounded-[2.5rem] p-8 border-2 border-indigo-50 shadow-sm relative overflow-hidden">
+        <div className="absolute top-0 right-0 p-6 opacity-10">
+          <i className="fas fa-cloud-download-alt text-6xl text-indigo-500"></i>
+        </div>
+        <h4 className="text-xl font-black text-slate-900 mb-2 flex items-center gap-3">
+          <i className="fas fa-save text-indigo-500"></i>
+          Dữ liệu & Học Offline
+        </h4>
+        <p className="text-slate-400 text-sm font-medium mb-6">Lưu dữ liệu về máy tính giúp bé có thể học tập ngay cả khi không có mạng internet.</p>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <button 
+            onClick={handleExportData}
+            className="flex items-center justify-between p-6 bg-indigo-50 border-2 border-indigo-100 rounded-3xl hover:bg-indigo-100 transition-all group"
+          >
+            <div className="text-left">
+              <p className="font-black text-indigo-700">Xuất dữ liệu (.json)</p>
+              <p className="text-[10px] font-bold text-indigo-400 uppercase">Lưu trữ về máy tính</p>
+            </div>
+            <i className="fas fa-download text-indigo-500 group-hover:bounce-y"></i>
+          </button>
+
+          <button 
+            onClick={handleImportClick}
+            className="flex items-center justify-between p-6 bg-slate-50 border-2 border-slate-100 rounded-3xl hover:bg-slate-100 transition-all group"
+          >
+            <div className="text-left">
+              <p className="font-black text-slate-700">Khôi phục dữ liệu</p>
+              <p className="text-[10px] font-bold text-slate-400 uppercase">Tải tệp từ máy tính</p>
+            </div>
+            <i className="fas fa-upload text-slate-400"></i>
+          </button>
+          <input 
+            type="file" 
+            ref={importInputRef} 
+            onChange={handleImportFile} 
+            accept=".json" 
+            className="hidden" 
+          />
         </div>
       </div>
 

@@ -119,6 +119,20 @@ const App: React.FC = () => {
     localStorage.setItem('kid-english-current-session', JSON.stringify(updatedUser));
   };
 
+  const handleImportData = (importedData: any) => {
+    if (importedData.user) setUser(importedData.user);
+    if (importedData.stats) setStats(importedData.stats);
+    if (importedData.vocabList) setVocabList(importedData.vocabList);
+    if (importedData.passages) setPassages(importedData.passages);
+    
+    // Lưu ngay vào localStorage
+    const userKey = `kid-user-${importedData.user.name.toLowerCase().trim()}`;
+    localStorage.setItem(`${userKey}-vocab`, JSON.stringify(importedData.vocabList));
+    localStorage.setItem(`${userKey}-stats`, JSON.stringify(importedData.stats));
+    localStorage.setItem(`${userKey}-passages`, JSON.stringify(importedData.passages));
+    localStorage.setItem('kid-english-current-session', JSON.stringify(importedData.user));
+  };
+
   useEffect(() => {
     if (!user || isTimerPaused) return;
     const interval = setInterval(() => {
@@ -197,7 +211,7 @@ const App: React.FC = () => {
       <div className="bg-slate-900 text-white sticky top-0 z-[60] shadow-xl">
         {!isOnline && (
           <div className="bg-amber-500 text-slate-900 text-[10px] font-black py-1 px-4 text-center uppercase tracking-widest flex items-center justify-center gap-2">
-            <i className="fas fa-plane-departure"></i> Chế độ ngoại tuyến: Dữ liệu của {user.name} đã được nạp!
+            <i className="fas fa-plane-departure"></i> Chế độ ngoại tuyến: Bé có thể ôn tập các từ đã học!
           </div>
         )}
         <div className="px-6 py-2 flex items-center justify-between">
@@ -284,7 +298,10 @@ const App: React.FC = () => {
             user={user} 
             stats={stats} 
             onUpdateUser={handleUpdateUser} 
-            onBack={() => setViewMode('today')} 
+            onBack={() => setViewMode('today')}
+            vocabList={vocabList}
+            passages={passages}
+            onImportData={handleImportData}
           />
         ) : (
           <>
