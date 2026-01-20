@@ -20,6 +20,35 @@ export interface VocabularyItem {
   antonyms: string[];
   ieltsParaphrases: string[]; 
   mnemonicHint: string;
+  learnedAt: number;
+  reviewCount: number;
+  isMastered?: boolean;
+  srsLevel: number; // 0 to 4 (4 is mastered)
+  nextReviewAt: number; // timestamp for next scheduled review
+}
+
+export interface ReadingPassage {
+  title: string;
+  contentEn: string;
+  contentVi: string;
+}
+
+export interface QuizQuestion {
+  id: string;
+  type: 'multiple-choice' | 'context-fill';
+  question: string;
+  options?: string[];
+  correctAnswer: string;
+  explanation: string;
+  wordId: string;
+}
+
+export interface StudyStats {
+  totalLearned: number;
+  currentDay: number;
+  streak: number;
+  lastStudyDate: string;
+  quizScore: number;
 }
 
 export type Topic = 
