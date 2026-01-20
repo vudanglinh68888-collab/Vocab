@@ -4,9 +4,10 @@ import { VocabularyItem } from '../types';
 
 interface Props {
   item: VocabularyItem;
+  onToggleMastered?: (id: string) => void;
 }
 
-const VocabularyCard: React.FC<Props> = ({ item }) => {
+const VocabularyCard: React.FC<Props> = ({ item, onToggleMastered }) => {
   const [isListening, setIsListening] = useState(false);
   const [feedback, setFeedback] = useState<{ text: string, type: 'success' | 'error' | null }>({ text: '', type: null });
 
@@ -40,7 +41,6 @@ const VocabularyCard: React.FC<Props> = ({ item }) => {
 
       if (speechToText === targetWord) {
         setFeedback({ text: '🌟 Tuyệt quá! Bé phát âm đúng rồi!', type: 'success' });
-        // Phát âm thanh chúc mừng nhỏ
         const audio = new Audio('https://www.soundjay.com/buttons/sounds/button-37a.mp3');
         audio.play().catch(() => {});
       } else {
@@ -91,7 +91,18 @@ const VocabularyCard: React.FC<Props> = ({ item }) => {
             <p className="font-mono font-bold text-sm opacity-90 mt-1">/{item.ipa}/</p>
           </div>
         </div>
-        <span className="text-[10px] font-black uppercase tracking-widest bg-black/10 px-3 py-1 rounded-full">{item.topic}</span>
+        <div className="flex flex-col items-end gap-2">
+          <span className="text-[10px] font-black uppercase tracking-widest bg-black/10 px-3 py-1 rounded-full">{item.topic}</span>
+          {onToggleMastered && (
+            <button 
+              onClick={() => onToggleMastered(item.id)}
+              className={`text-[10px] font-black uppercase px-3 py-1.5 rounded-xl transition-all flex items-center gap-2 ${item.isMastered ? 'bg-white text-emerald-600 shadow-md' : 'bg-white/20 text-white hover:bg-white/30'}`}
+            >
+              <i className={`fas ${item.isMastered ? 'fa-check-double' : 'fa-check'}`}></i>
+              {item.isMastered ? 'Đã thuộc' : 'Thuộc rồi'}
+            </button>
+          )}
+        </div>
       </div>
 
       {feedback.text && (
@@ -122,7 +133,7 @@ const VocabularyCard: React.FC<Props> = ({ item }) => {
             </p>
           </div>
           <div className="flex justify-between items-center text-[10px] font-black uppercase text-slate-400">
-             <span>Lần ôn tới: {new Date(item.nextReview).toLocaleDateString()}</span>
+             <span>Lần ôn tới: {item.isMastered ? 'Vĩnh viễn' : new Date(item.nextReview).toLocaleDateString()}</span>
              {item.interval > 0 && <span>Khoảng cách: {item.interval} ngày</span>}
           </div>
         </div>

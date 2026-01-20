@@ -14,6 +14,7 @@ const ProfileView: React.FC<Props> = ({ user, stats, onUpdateUser, onBack }) => 
   const [avatarSeed, setAvatarSeed] = useState(user.name);
   const [previewUrl, setPreviewUrl] = useState(user.avatar);
   const [selectedDayInfo, setSelectedDayInfo] = useState<{date: string, seconds: number} | null>(null);
+  const [dailyGoal, setDailyGoal] = useState(user.preferences?.dailyGoal || 10);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const badges: Badge[] = [
@@ -30,6 +31,17 @@ const ProfileView: React.FC<Props> = ({ user, stats, onUpdateUser, onBack }) => 
       avatar: previewUrl
     });
     setIsEditingAvatar(false);
+  };
+
+  const handleUpdateGoal = (val: number) => {
+    setDailyGoal(val);
+    onUpdateUser({
+      ...user,
+      preferences: {
+        ...(user.preferences || { reminders: true, soundEnabled: true }),
+        dailyGoal: val
+      }
+    });
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -112,6 +124,34 @@ const ProfileView: React.FC<Props> = ({ user, stats, onUpdateUser, onBack }) => 
             <div className="px-4 py-2 bg-blue-50 text-blue-600 rounded-xl font-black text-xs flex items-center gap-2">
               <i className="fas fa-award"></i> {badges.filter(b => b.unlocked).length} Huy hiệu
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Goal Settings */}
+      <div className="bg-white rounded-[2.5rem] p-8 border-2 border-orange-50 shadow-sm">
+        <h4 className="text-xl font-black text-slate-900 mb-6 flex items-center gap-3">
+          <i className="fas fa-bullseye text-rose-500"></i>
+          Mục tiêu hàng ngày
+        </h4>
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-bold text-slate-600">Số từ mới muốn học mỗi ngày:</span>
+            <span className="text-2xl font-black text-orange-500">{dailyGoal} từ</span>
+          </div>
+          <input 
+            type="range" 
+            min="2" 
+            max="30" 
+            step="1"
+            value={dailyGoal}
+            onChange={(e) => handleUpdateGoal(parseInt(e.target.value))}
+            className="w-full h-3 bg-orange-100 rounded-lg appearance-none cursor-pointer accent-orange-500"
+          />
+          <div className="flex justify-between text-[10px] font-black text-slate-400 uppercase">
+             <span>Nhẹ nhàng (2 từ)</span>
+             <span>Vừa sức</span>
+             <span>Chăm chỉ (30 từ)</span>
           </div>
         </div>
       </div>

@@ -32,7 +32,6 @@ const App: React.FC = () => {
     history: []
   });
 
-  // Theo dõi trạng thái mạng
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
@@ -44,7 +43,6 @@ const App: React.FC = () => {
     };
   }, []);
 
-  // Khôi phục phiên làm việc cuối cùng khi mở app
   useEffect(() => {
     const lastSessionUser = localStorage.getItem('kid-english-current-session');
     if (lastSessionUser) {
@@ -67,14 +65,16 @@ const App: React.FC = () => {
   };
 
   const handleLogin = (userData: User, grade: number) => {
-    const finalUser = { ...userData, grade };
+    const finalUser = { 
+      ...userData, 
+      grade,
+      preferences: userData.preferences || { dailyGoal: 10, reminders: true, soundEnabled: true }
+    };
     setUser(finalUser);
     setSelectedGrade(grade);
     
-    // Lưu phiên hiện tại
     localStorage.setItem('kid-english-current-session', JSON.stringify(finalUser));
     
-    // Nạp dữ liệu riêng biệt của tài khoản này
     const userKey = `kid-user-${userData.name.toLowerCase().trim()}`;
     const savedVocab = localStorage.getItem(`${userKey}-vocab`);
     const savedStats = localStorage.getItem(`${userKey}-stats`);
@@ -119,7 +119,6 @@ const App: React.FC = () => {
     localStorage.setItem('kid-english-current-session', JSON.stringify(updatedUser));
   };
 
-  // Timer thống kê thời gian học
   useEffect(() => {
     if (!user || isTimerPaused) return;
     const interval = setInterval(() => {
@@ -138,7 +137,6 @@ const App: React.FC = () => {
     return () => clearInterval(interval);
   }, [user, isTimerPaused]);
 
-  // Tự động lưu dữ liệu cho TỪNG TÀI KHOẢN khi có thay đổi
   useEffect(() => {
     if (!user) return;
     const userKey = `kid-user-${user.name.toLowerCase().trim()}`;
@@ -149,8 +147,12 @@ const App: React.FC = () => {
 
   const todayWords = useMemo(() => {
     const startOfToday = new Date().setHours(0,0,0,0);
-    return vocabList.filter(item => item.learnedAt >= startOfToday);
+    return vocabList.filter(item => item.learnedAt >= startOfToday && !item.isMastered);
   }, [vocabList]);
+
+  const dailyGoal = user?.preferences?.dailyGoal || 10;
+  const dailyProgress = Math.min(100, (todayWords.length / dailyGoal) * 100);
+  const isGoalMet = todayWords.length >= dailyGoal;
 
   const reviewDueWords = useMemo(() => {
     const now = Date.now();
@@ -167,7 +169,8 @@ const App: React.FC = () => {
     setLoading(true);
     try {
       const topicToFetch = selectedTopic === 'Random' ? TOPICS[Math.floor(Math.random() * TOPICS.length)] : selectedTopic;
-      const newItems = await generateDailySet(topicToFetch, 8, selectedGrade);
+      const count = Math.max(5, dailyGoal - todayWords.length);
+      const newItems = await generateDailySet(topicToFetch, count, selectedGrade);
       setVocabList(prev => [...newItems, ...prev]);
       setStats(s => ({ ...s, totalLearned: s.totalLearned + newItems.length }));
       const newPassages = await generateReadingPassages(newItems.map(i => i.word), selectedGrade);
@@ -179,6 +182,10 @@ const App: React.FC = () => {
     } finally { 
       setLoading(false); 
     }
+  };
+
+  const toggleMastered = (id: string) => {
+    setVocabList(prev => prev.map(item => item.id === id ? { ...item, isMastered: !item.isMastered } : item));
   };
 
   const formatDuration = (seconds: number) => `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
@@ -195,11 +202,14 @@ const App: React.FC = () => {
         )}
         <div className="px-6 py-2 flex items-center justify-between">
           <div className="flex items-center gap-4 flex-1">
-            <span className="text-[9px] font-black uppercase text-orange-400">Tiến trình của {user.name}:</span>
-            <div className="flex-1 h-2.5 bg-white/10 rounded-full overflow-hidden">
-              <div className="h-full bg-orange-500 transition-all duration-1000" style={{ width: `${Math.min(100, (stats.totalLearned / 5000) * 100)}%` }}></div>
+            <span className="text-[9px] font-black uppercase text-orange-400">Hôm nay:</span>
+            <div className="flex-1 h-2.5 bg-white/10 rounded-full overflow-hidden relative">
+              <div className={`h-full transition-all duration-1000 ${isGoalMet ? 'bg-emerald-500' : 'bg-orange-500'}`} style={{ width: `${dailyProgress}%` }}></div>
             </div>
-            <span className="text-xs font-black">{stats.totalLearned}/5000</span>
+            <span className={`text-xs font-black ${isGoalMet ? 'text-emerald-400' : 'text-white'}`}>
+              {todayWords.length}/{dailyGoal}
+              {isGoalMet && <i className="fas fa-check-circle ml-1"></i>}
+            </span>
           </div>
           <div className="ml-6 flex items-center gap-3">
              <div className="text-emerald-400 font-mono font-bold text-xs">{formatDuration(stats.totalSeconds)}</div>
@@ -278,11 +288,24 @@ const App: React.FC = () => {
           />
         ) : (
           <>
+            {isGoalMet && viewMode === 'today' && (
+              <div className="mb-8 bg-emerald-500 text-white p-6 rounded-[2rem] shadow-xl flex items-center justify-between animate-bounceIn border-4 border-white">
+                <div className="flex items-center gap-4">
+                  <div className="text-4xl">🌟</div>
+                  <div>
+                    <h3 className="text-xl font-black">Bé giỏi quá!</h3>
+                    <p className="text-sm font-bold opacity-90">Bé đã hoàn thành mục tiêu {dailyGoal} từ cho hôm nay!</p>
+                  </div>
+                </div>
+                <div className="text-3xl">🏆</div>
+              </div>
+            )}
+
             {viewMode !== 'game' && viewMode !== 'quiz' && (
               <div className="flex bg-white p-2 rounded-3xl border-2 border-orange-100 gap-2 mb-10 shadow-sm max-w-md mx-auto">
                 <button onClick={() => { setViewMode('today'); setCurrentTodayIdx(0); }} className={`flex-1 py-3 rounded-2xl text-[10px] font-black uppercase transition-all ${viewMode === 'today' ? 'bg-orange-500 text-white shadow-lg' : 'text-slate-500 hover:bg-orange-50'}`}>Hôm nay ({todayWords.length})</button>
                 <button onClick={() => setViewMode('review')} className={`flex-1 py-3 rounded-2xl text-[10px] font-black uppercase transition-all ${viewMode === 'review' ? 'bg-rose-500 text-white shadow-lg' : 'text-slate-500 hover:bg-rose-50'}`}>Ôn tập ({reviewDueWords.length})</button>
-                <button onClick={() => setViewMode('mastered')} className={`flex-1 py-3 rounded-2xl text-[10px] font-black uppercase transition-all ${viewMode === 'mastered' ? 'bg-emerald-500 text-white shadow-lg' : 'text-slate-500 hover:bg-emerald-50'}`}>Đã thuộc</button>
+                <button onClick={() => setViewMode('mastered')} className={`flex-1 py-3 rounded-2xl text-[10px] font-black uppercase transition-all ${viewMode === 'mastered' ? 'bg-emerald-500 text-white shadow-lg' : 'text-slate-500 hover:bg-emerald-50'}`}>Đã thuộc ({masteredWords.length})</button>
               </div>
             )}
 
@@ -294,7 +317,7 @@ const App: React.FC = () => {
               <QuizSection words={vocabList} onFinish={() => setViewMode('today')} />
             ) : viewMode === 'review' ? (
               <ReviewSection words={reviewDueWords} title="Vòng Quay Ôn Tập" onReviewComplete={(id, quality) => {
-                 // Spaced Repetition logic implementation
+                 // Spaced Repetition logic implementation could go here
               }} onPause={setIsTimerPaused} onExit={() => setViewMode('today')} />
             ) : viewMode === 'today' && todayWords.length > 0 ? (
               <div className="max-w-2xl mx-auto space-y-6">
@@ -311,7 +334,7 @@ const App: React.FC = () => {
                 </div>
                 
                 <div className={`transition-all duration-300 ${isTimerPaused ? 'blur-md pointer-events-none grayscale' : ''}`}>
-                  <VocabularyCard key={todayWords[currentTodayIdx].id} item={todayWords[currentTodayIdx]} />
+                  <VocabularyCard key={todayWords[currentTodayIdx].id} item={todayWords[currentTodayIdx]} onToggleMastered={toggleMastered} />
                   <div className="flex justify-center mt-6">
                       {currentTodayIdx < todayWords.length - 1 ? (
                         <button onClick={() => setCurrentTodayIdx(currentTodayIdx + 1)} className="px-12 py-5 bg-orange-500 text-white rounded-[2rem] font-black shadow-xl hover:scale-105 hover:bg-orange-600 transition-all">Từ tiếp theo <i className="fas fa-arrow-right ml-2"></i></button>
@@ -326,13 +349,20 @@ const App: React.FC = () => {
             ) : (
               <div className="space-y-6">
                 {(viewMode === 'mastered' ? masteredWords : vocabList).map(item => (
-                  <VocabularyCard key={item.id} item={item} />
+                  <VocabularyCard key={item.id} item={item} onToggleMastered={toggleMastered} />
                 ))}
                 {vocabList.length === 0 && (
                   <div className="text-center py-24 bg-white/40 rounded-[4rem] border-4 border-dashed border-orange-100">
                       <div className="text-7xl mb-6">🎒</div>
                       <h3 className="text-2xl font-black text-slate-800">Bắt đầu hành trình nào!</h3>
                       <p className="text-sm font-bold text-slate-400 mt-2 max-w-xs mx-auto">Chào mừng {user.name}, hãy chọn chủ đề bé yêu thích phía trên và nhấn "Học bài mới" nhé!</p>
+                  </div>
+                )}
+                {viewMode === 'mastered' && masteredWords.length === 0 && vocabList.length > 0 && (
+                  <div className="text-center py-24 bg-white/40 rounded-[4rem] border-4 border-dashed border-orange-100">
+                      <div className="text-7xl mb-6">🌟</div>
+                      <h3 className="text-2xl font-black text-slate-800">Chưa có từ nào thuộc hẳn</h3>
+                      <p className="text-sm font-bold text-slate-400 mt-2 max-w-xs mx-auto">Bé hãy nhấn "Thuộc rồi" ở các thẻ từ vựng để đưa chúng vào danh sách này nhé!</p>
                   </div>
                 )}
               </div>
