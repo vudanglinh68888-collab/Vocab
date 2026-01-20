@@ -1,5 +1,5 @@
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { User, StudyStats, Badge, VocabularyItem, ReadingPassage } from '../types';
 
 interface Props {
@@ -11,16 +11,23 @@ interface Props {
   vocabList?: VocabularyItem[];
   passages?: ReadingPassage[];
   onImportData?: (data: any) => void;
+  onSync?: () => void;
 }
 
-const ProfileView: React.FC<Props> = ({ user, stats, onUpdateUser, onBack, vocabList, passages, onImportData }) => {
+const ProfileView: React.FC<Props> = ({ user, stats, onUpdateUser, onBack, vocabList, passages, onImportData, onSync }) => {
   const [isEditingAvatar, setIsEditingAvatar] = useState(false);
   const [avatarSeed, setAvatarSeed] = useState(user.name);
   const [previewUrl, setPreviewUrl] = useState(user.avatar);
   const [selectedDayInfo, setSelectedDayInfo] = useState<{date: string, seconds: number} | null>(null);
   const [dailyGoal, setDailyGoal] = useState(user.preferences?.dailyGoal || 10);
+  const [lastSync, setLastSync] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const userKey = `kid-user-${user.name.toLowerCase().trim()}`;
+    setLastSync(localStorage.getItem(`${userKey}-last-sync`));
+  }, [user]);
 
   const badges: Badge[] = [
     { id: '1', name: 'Mầm Non', icon: '🌱', description: 'Học 10 từ đầu tiên', unlocked: stats.totalLearned >= 10 },
@@ -208,16 +215,28 @@ const ProfileView: React.FC<Props> = ({ user, stats, onUpdateUser, onBack, vocab
         </div>
       </div>
 
-      {/* Dữ liệu & Học Offline */}
+      {/* Dữ liệu & Máy chủ Cloud */}
       <div className="bg-white rounded-[2.5rem] p-8 border-2 border-indigo-50 shadow-sm relative overflow-hidden">
         <div className="absolute top-0 right-0 p-6 opacity-10">
-          <i className="fas fa-cloud-download-alt text-6xl text-indigo-500"></i>
+          <i className="fas fa-cloud-upload-alt text-6xl text-indigo-500"></i>
         </div>
-        <h4 className="text-xl font-black text-slate-900 mb-2 flex items-center gap-3">
-          <i className="fas fa-save text-indigo-500"></i>
-          Dữ liệu & Học Offline
-        </h4>
-        <p className="text-slate-400 text-sm font-medium mb-6">Lưu dữ liệu về máy tính giúp bé có thể học tập ngay cả khi không có mạng internet.</p>
+        <div className="flex justify-between items-start mb-2">
+          <h4 className="text-xl font-black text-slate-900 flex items-center gap-3">
+            <i className="fas fa-server text-indigo-500"></i>
+            Lưu trữ máy chủ
+          </h4>
+          {onSync && (
+            <button 
+              onClick={onSync}
+              className="bg-indigo-500 text-white px-4 py-2 rounded-xl text-xs font-black shadow-lg hover:bg-indigo-600 transition-all flex items-center gap-2"
+            >
+              <i className="fas fa-sync"></i> Đồng bộ ngay
+            </button>
+          )}
+        </div>
+        <p className="text-slate-400 text-sm font-medium mb-6">
+          {lastSync ? `Lần đồng bộ cuối: ${new Date(lastSync).toLocaleString()}` : "Bé chưa đồng bộ dữ liệu lên máy chủ."}
+        </p>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <button 
@@ -226,7 +245,7 @@ const ProfileView: React.FC<Props> = ({ user, stats, onUpdateUser, onBack, vocab
           >
             <div className="text-left">
               <p className="font-black text-indigo-700">Xuất dữ liệu (.json)</p>
-              <p className="text-[10px] font-bold text-indigo-400 uppercase">Lưu trữ về máy tính</p>
+              <p className="text-[10px] font-bold text-indigo-400 uppercase">Lưu về máy tính này</p>
             </div>
             <i className="fas fa-download text-indigo-500 group-hover:bounce-y"></i>
           </button>
@@ -236,7 +255,7 @@ const ProfileView: React.FC<Props> = ({ user, stats, onUpdateUser, onBack, vocab
             className="flex items-center justify-between p-6 bg-slate-50 border-2 border-slate-100 rounded-3xl hover:bg-slate-100 transition-all group"
           >
             <div className="text-left">
-              <p className="font-black text-slate-700">Khôi phục dữ liệu</p>
+              <p className="font-black text-slate-700">Khôi phục từ tệp</p>
               <p className="text-[10px] font-bold text-slate-400 uppercase">Tải tệp từ máy tính</p>
             </div>
             <i className="fas fa-upload text-slate-400"></i>
