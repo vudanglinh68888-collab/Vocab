@@ -1,9 +1,7 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
-// Removed QuizQuestion as it is not exported from types.ts
 import { VocabularyItem, Topic, ReadingPassage } from "./types";
 
-// Always use named parameter for apiKey and use process.env.API_KEY directly
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 const VOCAB_SCHEMA = {
@@ -14,7 +12,7 @@ const VOCAB_SCHEMA = {
     definition: { type: Type.STRING },
     vietnameseDefinition: { type: Type.STRING },
     example: { type: Type.STRING },
-    grade: { type: Type.INTEGER },
+    grade: { type: Type.INTEGER, description: 'Lớp học từ 2 đến 9' },
     topic: { type: Type.STRING },
     rootAnalysis: {
       type: Type.OBJECT,
@@ -28,7 +26,7 @@ const VOCAB_SCHEMA = {
     },
     synonyms: { type: Type.ARRAY, items: { type: Type.STRING } },
     antonyms: { type: Type.ARRAY, items: { type: Type.STRING } },
-    mnemonicHint: { type: Type.STRING, description: 'Giải thích mẹo ghi nhớ bằng tiếng Việt một cách hài hước và dễ nhớ cho trẻ em' }
+    mnemonicHint: { type: Type.STRING, description: 'Mẹo ghi nhớ bằng tiếng Việt theo phong cách Bà Bô vui nhộn' }
   },
   required: [
     'word', 'ipa', 'definition', 'vietnameseDefinition', 'example', 
@@ -36,43 +34,56 @@ const VOCAB_SCHEMA = {
   ]
 };
 
-const BATCH_SCHEMA = {
-  type: Type.ARRAY,
-  items: VOCAB_SCHEMA
-};
-
-export const generateDailySet = async (topic: Topic, count: number = 8, grade: number = 2): Promise<VocabularyItem[]> => {
-  // Use 'gemini-3-flash-preview' for basic generation tasks
+export const generateDailySet = async (topic: Topic, count: number = 5, grade: number = 2): Promise<VocabularyItem[]> => {
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
-    contents: `Bạn là giáo viên tiếng Anh cho trẻ em Việt Nam. Hãy tạo danh sách ${count} từ vựng tiếng Anh chủ đề ${topic} phù hợp cho học sinh Lớp ${grade}. 
-    - Giải thích từ vựng đơn giản.
-    - PHẦN mnemonicHint PHẢI LÀ TIẾNG VIỆT, dùng hình ảnh liên tưởng vui nhộn.
-    - Phân tích root (gốc từ) nếu có.`,
+    contents: `Bạn là "Bà Bô" - một người mẹ giỏi tiếng Anh đang dạy con. Hãy tạo ${count} từ vựng phù hợp cho học sinh LỚP ${grade} thuộc chủ đề ${topic}. 
+    - Từ vựng phải bám sát chương trình phổ thông của Việt Nam.
+    - Câu ví dụ đơn giản, dễ hiểu với học sinh lớp ${grade}.
+    - MnemonicHint giải thích kiểu "mẹ dạy con" cực kỳ gần gũi.`,
     config: {
       responseMimeType: "application/json",
-      responseSchema: BATCH_SCHEMA,
+      responseSchema: { type: Type.ARRAY, items: VOCAB_SCHEMA },
     },
   });
 
-  // Use response.text property directly
   const data = JSON.parse(response.text.trim());
   return data.map((item: any) => ({
     ...item,
     id: Math.random().toString(36).substr(2, 9),
     learnedAt: Date.now(),
     reviewCount: 0,
-    grade: grade,
     interval: 0,
     easiness: 2.5,
     nextReview: Date.now()
   }));
 };
 
-export const generateReadingPassages = async (words: string[], grade: number = 2): Promise<ReadingPassage[]> => {
+export const evaluateSentence = async (word: string, userSentence: string): Promise<{ score: number, feedback: string, correction: string, vietnamese: string }> => {
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
-    contents: `Viết 2 mẩu chuyện ngắn vui nhộn cho học sinh lớp ${grade} sử dụng các từ: ${words.join(', ')}.`,
+    contents: `Con của bạn ("Bà Bô") vừa viết câu: "${userSentence}" với từ "${word}". 
+    Hãy nhận xét như một người mẹ đang chấm bài cho con, khen ngợi nếu con làm tốt, sửa lỗi nhẹ nhàng.
+    Trả về JSON: { "score": number, "feedback": "nhận xét kiểu Bà Bô", "correction": "câu đúng", "vietnamese": "nghĩa tiếng Việt" }`,
+    config: { responseMimeType: "application/json" }
+  });
+  return JSON.parse(response.text.trim());
+};
+
+export const getDailyPerformanceReview = async (learnedWords: string[], stats: any): Promise<string> => {
+  const response = await ai.models.generateContent({
+    model: 'gemini-3-flash-preview',
+    contents: `Hôm nay con đã học xong bài. Từ đã học: ${learnedWords.join(', ')}. Thời gian: ${Math.floor(stats.totalSeconds / 60)} phút. 
+    Hãy viết một đoạn tổng kết kiểu "Bà Bô" khen ngợi hoặc dặn dò con (đầy tình thương nhưng vẫn có chút uy quyền của mẹ).`,
+  });
+  return response.text;
+};
+
+export const generateReadingPassages = async (words: string[], grade: number): Promise<ReadingPassage[]> => {
+  const response = await ai.models.generateContent({
+    model: 'gemini-3-flash-preview',
+    contents: `Viết 2 mẩu chuyện cực ngắn dành cho trẻ lớp ${grade} có dùng các từ: ${words.join(', ')}. 
+    Câu văn ngắn gọn, trong sáng. Trả về mảng JSON {title, contentEn, contentVi}.`,
     config: {
       responseMimeType: "application/json",
       responseSchema: {
@@ -89,15 +100,5 @@ export const generateReadingPassages = async (words: string[], grade: number = 2
       },
     },
   });
-  // Use response.text property directly
   return JSON.parse(response.text.trim());
-};
-
-export const getTutorAdvice = async (stats: any): Promise<string> => {
-  const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
-    contents: `Bạn là chú Gấu Tutor thông thái. Hãy nhắn nhủ một câu cổ vũ cực kỳ đáng yêu cho bé đã học được ${stats.totalLearned} từ.`,
-  });
-  // Use response.text property directly
-  return response.text;
 };

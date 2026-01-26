@@ -8,134 +8,97 @@ interface Props {
 }
 
 const VocabularyCard: React.FC<Props> = ({ item, onToggleMastered }) => {
-  const [isListening, setIsListening] = useState(false);
+  const [isListening, setIsListening] = useState<'word' | 'sentence' | null>(null);
   const [feedback, setFeedback] = useState<{ text: string, type: 'success' | 'error' | null }>({ text: '', type: null });
 
-  const speak = (text: string) => {
+  const speak = (text: string, slow = false) => {
+    window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'en-US';
-    utterance.rate = 0.8;
+    utterance.rate = slow ? 0.6 : 0.85;
     window.speechSynthesis.speak(utterance);
   };
 
-  const startListening = () => {
+  const startListening = (mode: 'word' | 'sentence') => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      alert("Trình duyệt của bạn không hỗ trợ nhận diện giọng nói.");
-      return;
-    }
+    if (!SpeechRecognition) return;
 
     const recognition = new SpeechRecognition();
     recognition.lang = 'en-US';
-    recognition.interimResults = false;
-    recognition.maxAlternatives = 1;
-
+    
     recognition.onstart = () => {
-      setIsListening(true);
-      setFeedback({ text: 'Bé đọc đi nào...', type: null });
+      setIsListening(mode);
+      setFeedback({ text: `Bà Bô đang nghe con đọc nè...`, type: null });
     };
 
     recognition.onresult = (event: any) => {
       const speechToText = event.results[0][0].transcript.toLowerCase().replace(/[.,/#!$%^&*;:{}=\-_`~()]/g,"");
-      const targetWord = item.word.toLowerCase().replace(/[.,/#!$%^&*;:{}=\-_`~()]/g,"");
+      const target = (mode === 'word' ? item.word : item.example).toLowerCase().replace(/[.,/#!$%^&*;:{}=\-_`~()]/g,"");
 
-      if (speechToText === targetWord) {
-        setFeedback({ text: '🌟 Tuyệt quá! Bé phát âm đúng rồi!', type: 'success' });
-        const audio = new Audio('https://www.soundjay.com/buttons/sounds/button-37a.mp3');
-        audio.play().catch(() => {});
+      const similarity = speechToText.split(' ').filter(word => target.includes(word)).length / target.split(' ').length;
+
+      if (similarity > 0.7) {
+        setFeedback({ text: '🌟 Giỏi quá! Con của mẹ đọc chuẩn lắm!', type: 'success' });
       } else {
-        setFeedback({ text: `Bé đọc là "${speechToText}", thử lại nhé!`, type: 'error' });
+        setFeedback({ text: `Nghe chưa giống lắm, con đọc lại mẹ nghe xem nào!`, type: 'error' });
       }
     };
 
-    recognition.onerror = () => {
-      setFeedback({ text: 'Gấu không nghe rõ, bé thử lại nhé!', type: 'error' });
-      setIsListening(false);
-    };
-
-    recognition.onend = () => {
-      setIsListening(false);
-    };
-
+    recognition.onerror = () => setIsListening(null);
+    recognition.onend = () => setIsListening(null);
     recognition.start();
   };
 
   return (
-    <div className={`bg-white rounded-[2rem] shadow-xl border-4 overflow-hidden transition-all duration-300 ${item.isMastered ? 'border-emerald-200' : 'border-orange-100'}`}>
-      <div className={`${item.isMastered ? 'bg-emerald-500' : 'bg-orange-500'} p-6 text-white flex justify-between items-center`}>
-        <div className="flex items-center gap-5">
-          <div className="w-14 h-14 bg-white/20 rounded-2xl flex flex-col items-center justify-center border-2 border-white/30 backdrop-blur-sm">
-             <span className="text-[8px] font-black uppercase opacity-80">Lớp</span>
-             <span className="text-xl font-black">{item.grade}</span>
-          </div>
-          <div>
-            <div className="flex items-center gap-4">
-              <h2 className="text-3xl font-black tracking-tight">{item.word}</h2>
-              <div className="flex gap-2">
-                <button 
-                  onClick={() => speak(item.word)}
-                  className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center hover:bg-white/40 transition-all shadow-sm"
-                  title="Nghe phát âm"
-                >
-                  <i className="fas fa-volume-up"></i>
-                </button>
-                <button 
-                  onClick={startListening}
-                  className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all shadow-sm ${isListening ? 'bg-red-500 animate-pulse' : 'bg-white/20 hover:bg-white/40'}`}
-                  title="Tập đọc"
-                >
-                  <i className={`fas ${isListening ? 'fa-microphone' : 'fa-microphone-alt'}`}></i>
-                </button>
-              </div>
+    <div className={`bg-white rounded-[2.5rem] shadow-xl border-4 transition-all duration-300 ${item.isMastered ? 'border-emerald-200' : 'border-rose-100'}`}>
+      <div className={`${item.isMastered ? 'bg-emerald-500' : 'bg-rose-500'} p-8 text-white rounded-t-[2.2rem]`}>
+        <div className="flex justify-between items-start">
+          <div className="space-y-2">
+            <div className="flex items-center gap-3">
+              <span className="px-3 py-1 bg-white/20 rounded-full text-[10px] font-black uppercase tracking-tighter">Lớp {item.grade}</span>
+              <span className="text-[10px] font-black uppercase opacity-60 tracking-widest">{item.topic}</span>
             </div>
-            <p className="font-mono font-bold text-sm opacity-90 mt-1">/{item.ipa}/</p>
+            <h2 className="text-5xl font-black tracking-tight">{item.word}</h2>
+            <p className="font-mono font-bold text-lg opacity-80">/{item.ipa}/</p>
           </div>
-        </div>
-        <div className="flex flex-col items-end gap-2">
-          <span className="text-[10px] font-black uppercase tracking-widest bg-black/10 px-3 py-1 rounded-full">{item.topic}</span>
-          {onToggleMastered && (
-            <button 
-              onClick={() => onToggleMastered(item.id)}
-              className={`text-[10px] font-black uppercase px-3 py-1.5 rounded-xl transition-all flex items-center gap-2 ${item.isMastered ? 'bg-white text-emerald-600 shadow-md' : 'bg-white/20 text-white hover:bg-white/30'}`}
-            >
-              <i className={`fas ${item.isMastered ? 'fa-check-double' : 'fa-check'}`}></i>
-              {item.isMastered ? 'Đã thuộc' : 'Thuộc rồi'}
-            </button>
-          )}
+          <div className="flex gap-3">
+            <button onClick={() => speak(item.word)} className="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center hover:bg-white/40 transition-all shadow-lg"><i className="fas fa-volume-up text-xl"></i></button>
+            <button onClick={() => startListening('word')} className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all shadow-lg ${isListening === 'word' ? 'bg-red-500 animate-pulse' : 'bg-white/20 hover:bg-white/40'}`}><i className="fas fa-microphone-alt text-xl"></i></button>
+          </div>
         </div>
       </div>
 
       {feedback.text && (
-        <div className={`px-6 py-3 text-center text-sm font-black animate-fadeIn ${feedback.type === 'success' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
+        <div className={`px-8 py-4 text-center text-sm font-black animate-fadeIn ${feedback.type === 'success' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
           {feedback.text}
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-orange-50">
-        <div className="p-6 space-y-4">
-          <div>
-            <h4 className="text-[10px] font-black text-orange-400 uppercase mb-1">Nghĩa tiếng Việt</h4>
-            <p className="text-2xl font-black text-slate-800">{item.vietnameseDefinition}</p>
+      <div className="p-8 space-y-8">
+        <div>
+          <h4 className="text-[10px] font-black text-rose-400 uppercase tracking-widest mb-2">Nghĩa là:</h4>
+          <p className="text-3xl font-black text-slate-800 leading-tight mb-2">{item.vietnameseDefinition}</p>
+          <p className="text-slate-500 font-medium italic text-sm">{item.definition}</p>
+        </div>
+
+        <div className="pt-6 border-t border-rose-50">
+          <div className="flex justify-between items-center mb-4">
+            <h4 className="text-[10px] font-black text-indigo-500 uppercase tracking-widest">Ví dụ của mẹ:</h4>
+            <div className="flex gap-2">
+              <button onClick={() => speak(item.example)} className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-500 flex items-center justify-center hover:bg-indigo-100 transition-all shadow-sm"><i className="fas fa-play text-xs"></i></button>
+              <button onClick={() => startListening('sentence')} className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all shadow-sm ${isListening === 'sentence' ? 'bg-red-500 text-white animate-pulse' : 'bg-indigo-50 text-indigo-500 hover:bg-indigo-100'}`}><i className="fas fa-microphone text-xs"></i></button>
+            </div>
           </div>
-          <div className="pt-4 border-t border-orange-50">
-            <h4 className="text-[10px] font-black text-blue-400 uppercase mb-2">Ví dụ vui</h4>
-            <p className="text-slate-700 font-bold italic text-base leading-relaxed bg-blue-50 p-4 rounded-2xl border-l-4 border-blue-400">
-              "{item.example}"
-            </p>
+          <div className="bg-indigo-50/50 p-6 rounded-3xl border-l-8 border-indigo-400">
+            <p className="text-slate-700 font-bold text-lg leading-relaxed mb-2">"{item.example}"</p>
+            <p className="text-slate-400 text-xs font-bold uppercase opacity-60 tracking-wider">Nhấn nút phát để Bà Bô đọc con nghe</p>
           </div>
         </div>
 
-        <div className="p-6 bg-orange-50/20 space-y-4">
-          <div className="bg-white p-4 rounded-2xl shadow-sm border border-orange-100">
-            <h4 className="text-[10px] font-black text-amber-600 uppercase mb-1">Mẹo siêu nhớ 💡</h4>
-            <p className="text-sm font-bold text-slate-800 leading-relaxed italic">
-              {item.mnemonicHint}
-            </p>
-          </div>
-          <div className="flex justify-between items-center text-[10px] font-black uppercase text-slate-400">
-             <span>Lần ôn tới: {item.isMastered ? 'Vĩnh viễn' : new Date(item.nextReview).toLocaleDateString()}</span>
-             {item.interval > 0 && <span>Khoảng cách: {item.interval} ngày</span>}
-          </div>
+        <div className="bg-amber-50 p-6 rounded-3xl border border-amber-100 relative overflow-hidden">
+          <div className="absolute -top-2 -right-2 text-4xl opacity-10 rotate-12">👩‍🏫</div>
+          <h4 className="text-[10px] font-black text-amber-600 uppercase mb-2">Mẹ dạy con ghi nhớ:</h4>
+          <p className="text-sm font-bold text-slate-700 leading-relaxed italic">{item.mnemonicHint}</p>
         </div>
       </div>
     </div>

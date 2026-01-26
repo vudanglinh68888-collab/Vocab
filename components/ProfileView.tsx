@@ -7,6 +7,7 @@ interface Props {
   stats: StudyStats;
   onUpdateUser: (updatedUser: User) => void;
   onBack: () => void;
+  onLogout?: () => void;
   // Bổ sung các props để quản lý dữ liệu toàn cục
   vocabList?: VocabularyItem[];
   passages?: ReadingPassage[];
@@ -14,7 +15,7 @@ interface Props {
   onSync?: () => void;
 }
 
-const ProfileView: React.FC<Props> = ({ user, stats, onUpdateUser, onBack, vocabList, passages, onImportData, onSync }) => {
+const ProfileView: React.FC<Props> = ({ user, stats, onUpdateUser, onBack, onLogout, vocabList, passages, onImportData, onSync }) => {
   const [isEditingAvatar, setIsEditingAvatar] = useState(false);
   const [avatarSeed, setAvatarSeed] = useState(user.name);
   const [previewUrl, setPreviewUrl] = useState(user.avatar);
@@ -147,11 +148,21 @@ const ProfileView: React.FC<Props> = ({ user, stats, onUpdateUser, onBack, vocab
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 animate-fadeIn pb-10">
-      <div className="flex items-center gap-4">
-        <button onClick={onBack} className="w-10 h-10 rounded-full bg-white shadow-sm flex items-center justify-center text-slate-400 hover:text-orange-500 transition-colors">
-          <i className="fas fa-arrow-left"></i>
-        </button>
-        <h2 className="text-2xl font-black text-slate-900">Hồ sơ cá nhân</h2>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <button onClick={onBack} className="w-10 h-10 rounded-full bg-white shadow-sm flex items-center justify-center text-slate-400 hover:text-orange-500 transition-colors">
+            <i className="fas fa-arrow-left"></i>
+          </button>
+          <h2 className="text-2xl font-black text-slate-900">Hồ sơ cá nhân</h2>
+        </div>
+        {onLogout && (
+          <button 
+            onClick={onLogout}
+            className="px-4 py-2 bg-rose-50 text-rose-500 rounded-xl font-black text-xs flex items-center gap-2 hover:bg-rose-500 hover:text-white transition-all border border-rose-100"
+          >
+            <i className="fas fa-sign-out-alt"></i> Thoát tài khoản
+          </button>
+        )}
       </div>
 
       {/* Header Info */}
@@ -175,7 +186,7 @@ const ProfileView: React.FC<Props> = ({ user, stats, onUpdateUser, onBack, vocab
 
         <div className="text-center md:text-left z-10 space-y-2">
           <h3 className="text-4xl font-black text-slate-900 leading-tight">{user.name}</h3>
-          <p className="text-slate-400 font-bold">{user.email || 'Học viên nhí tài năng'}</p>
+          <p className="text-slate-400 font-bold">Bé đang học Lớp {user.grade}</p>
           <div className="flex flex-wrap justify-center md:justify-start gap-3 mt-4">
             <div className="px-4 py-2 bg-orange-50 text-orange-600 rounded-xl font-black text-xs flex items-center gap-2">
               <i className="fas fa-fire"></i> {stats.streak} Ngày liên tiếp
