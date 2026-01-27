@@ -26,7 +26,7 @@ const VOCAB_SCHEMA = {
     },
     synonyms: { type: Type.ARRAY, items: { type: Type.STRING } },
     antonyms: { type: Type.ARRAY, items: { type: Type.STRING } },
-    mnemonicHint: { type: Type.STRING, description: 'Mẹo ghi nhớ bằng tiếng Việt theo phong cách Bà Bô vui nhộn' }
+    mnemonicHint: { type: Type.STRING, description: 'Mẹo ghi nhớ bằng tiếng Việt theo phong cách Bà Bô' }
   },
   required: [
     'word', 'ipa', 'definition', 'vietnameseDefinition', 'example', 
@@ -38,9 +38,8 @@ export const generateDailySet = async (topic: Topic, count: number = 5, grade: n
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
     contents: `Bạn là "Bà Bô" - một người mẹ giỏi tiếng Anh đang dạy con. Hãy tạo ${count} từ vựng phù hợp cho học sinh LỚP ${grade} thuộc chủ đề ${topic}. 
-    - Từ vựng phải bám sát chương trình phổ thông của Việt Nam.
-    - Câu ví dụ đơn giản, dễ hiểu với học sinh lớp ${grade}.
-    - MnemonicHint giải thích kiểu "mẹ dạy con" cực kỳ gần gũi.`,
+    - Từ vựng bám sát chương trình phổ thông.
+    - MnemonicHint giải thích kiểu "mẹ dạy con".`,
     config: {
       responseMimeType: "application/json",
       responseSchema: { type: Type.ARRAY, items: VOCAB_SCHEMA },
@@ -63,8 +62,11 @@ export const evaluateSentence = async (word: string, userSentence: string): Prom
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
     contents: `Con của bạn ("Bà Bô") vừa viết câu: "${userSentence}" với từ "${word}". 
-    Hãy nhận xét như một người mẹ đang chấm bài cho con, khen ngợi nếu con làm tốt, sửa lỗi nhẹ nhàng.
-    Trả về JSON: { "score": number, "feedback": "nhận xét kiểu Bà Bô", "correction": "câu đúng", "vietnamese": "nghĩa tiếng Việt" }`,
+    Hãy nhận xét như một người mẹ đang chấm bài cho con.
+    QUY TẮC QUAN TRỌNG: 
+    - Nếu con làm đúng hoặc điểm >= 80, trong câu nhận xét MUST bao gồm cụm từ "nhanh hơn Bông Béo rồi!".
+    - Nếu con làm sai hoặc điểm < 80, trong câu nhận xét MUST bao gồm cụm từ "cố lên không Bông Đồng Hồ chạy nhanh hơn bây giờ!".
+    Trả về JSON: { "score": number, "feedback": "nhận xét", "correction": "câu đúng", "vietnamese": "nghĩa tiếng Việt" }`,
     config: { responseMimeType: "application/json" }
   });
   return JSON.parse(response.text.trim());
@@ -73,8 +75,9 @@ export const evaluateSentence = async (word: string, userSentence: string): Prom
 export const getDailyPerformanceReview = async (learnedWords: string[], stats: any): Promise<string> => {
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
-    contents: `Hôm nay con đã học xong bài. Từ đã học: ${learnedWords.join(', ')}. Thời gian: ${Math.floor(stats.totalSeconds / 60)} phút. 
-    Hãy viết một đoạn tổng kết kiểu "Bà Bô" khen ngợi hoặc dặn dò con (đầy tình thương nhưng vẫn có chút uy quyền của mẹ).`,
+    contents: `Hôm nay con đã học xong bài. Từ đã học: ${learnedWords.join(', ')}. 
+    Hãy viết một đoạn tổng kết kiểu "Bà Bô" khen ngợi hoặc dặn dò con. 
+    Lưu ý: Nếu kết quả tốt hãy nhắc đến việc con "nhanh hơn Bông Béo", nếu chưa tốt hãy nhắc con "Bông Đồng Hồ đang chạy nhanh đấy".`,
   });
   return response.text;
 };
@@ -82,8 +85,7 @@ export const getDailyPerformanceReview = async (learnedWords: string[], stats: a
 export const generateReadingPassages = async (words: string[], grade: number): Promise<ReadingPassage[]> => {
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
-    contents: `Viết 2 mẩu chuyện cực ngắn dành cho trẻ lớp ${grade} có dùng các từ: ${words.join(', ')}. 
-    Câu văn ngắn gọn, trong sáng. Trả về mảng JSON {title, contentEn, contentVi}.`,
+    contents: `Viết 2 mẩu chuyện cực ngắn dành cho trẻ lớp ${grade} có dùng các từ: ${words.join(', ')}. Trả về mảng JSON {title, contentEn, contentVi}.`,
     config: {
       responseMimeType: "application/json",
       responseSchema: {

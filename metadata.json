@@ -1,6 +1,6 @@
 {
-  "name": "KidEnglish Magic",
-  "description": "Ứng dụng học từ vựng tiếng Anh kỳ thú cho bé từ Lớp 2 đến Lớp 9",
+  "name": "Bà Bô Tutor",
+  "description": "Ứng dụng học tiếng Anh cho bé cùng Bà Bô vui tính",
   "requestFramePermissions": [
     "microphone"
   ]
