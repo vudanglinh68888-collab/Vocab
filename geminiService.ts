@@ -12,7 +12,7 @@ const VOCAB_SCHEMA = {
     definition: { type: Type.STRING },
     vietnameseDefinition: { type: Type.STRING },
     example: { type: Type.STRING },
-    grade: { type: Type.INTEGER, description: 'Lớp học từ 5 đến 9' },
+    grade: { type: Type.INTEGER, description: 'Lớp học từ 4 đến 9' },
     topic: { type: Type.STRING },
     rootAnalysis: {
       type: Type.OBJECT,
@@ -34,25 +34,17 @@ const VOCAB_SCHEMA = {
   ]
 };
 
-const EVAL_SCHEMA = {
-  type: Type.OBJECT,
-  properties: {
-    score: { type: Type.NUMBER },
-    feedback: { type: Type.STRING },
-    correction: { type: Type.STRING },
-    vietnamese: { type: Type.STRING }
-  },
-  required: ['score', 'feedback', 'correction', 'vietnamese']
-};
-
 export const generateDailySet = async (topic: Topic, count: number = 5, grade: number = 5, streak: number = 0, totalLearned: number = 0, excludedWords: string[] = []): Promise<VocabularyItem[]> => {
+  let difficulty = "trình độ Lớp 4-5 cơ bản";
+  if (grade >= 6 && grade <= 7) difficulty = "trình độ Academic English trung học (Intermediate)";
+  if (grade >= 8) difficulty = "trình độ IELTS B2-C1 (Advanced)";
+  
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
-    contents: `Bạn là "Mẹ chiên giòn". Hãy tạo ${count} từ vựng Tiếng Anh học thuật phù hợp cho học sinh LỚP ${grade} (trong khoảng lớp 5-9). 
+    contents: `Bạn là "Mẹ chiên giòn". Hãy tạo ${count} từ vựng Tiếng Anh thuộc ${difficulty} phù hợp cho học sinh LỚP ${grade}. 
     Chủ đề: ${topic}. 
-    KHÔNG ĐƯỢC trùng với: ${excludedWords.slice(-50).join(', ')}.
-    - Giải thích dí dỏm, mẹ dạy con.
-    - Tập trung vào từ vựng nâng cao hơn một chút so với tiểu học.`,
+    CỰC KỲ QUAN TRỌNG: KHÔNG ĐƯỢC chọn bất kỳ từ nào trong danh sách ĐÃ THUỘC sau: [${excludedWords.join(', ')}].
+    - Giải thích dí dỏm, mẹ dạy con.`,
     config: {
       responseMimeType: "application/json",
       responseSchema: { type: Type.ARRAY, items: VOCAB_SCHEMA },
@@ -72,21 +64,23 @@ export const generateDailySet = async (topic: Topic, count: number = 5, grade: n
 };
 
 export const generateInitialBatch = async (grade: number): Promise<VocabularyItem[]> => {
-  const randomTopic = TOPICS[Math.floor(Math.random() * TOPICS.length)];
+  let difficulty = grade <= 5 ? "Lớp 4-5" : grade <= 7 ? "Intermediate" : "IELTS B2-C1";
+  
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
-    contents: `Tạo 20 từ vựng nền tảng cực hay cho học sinh LỚP ${grade} (khối 5-9). Trả về JSON.`,
+    contents: `Bạn là "Mẹ chiên giòn". Hãy tạo 20 từ vựng Tiếng Anh khởi đầu thuộc trình độ ${difficulty} phù hợp cho học sinh LỚP ${grade}. 
+    Các từ vựng nên đa dạng chủ đề. Giải thích dí dỏm phong cách mẹ dạy con.`,
     config: {
       responseMimeType: "application/json",
       responseSchema: { type: Type.ARRAY, items: VOCAB_SCHEMA },
     },
   });
-  
+
   const data = JSON.parse(response.text.trim());
   return data.map((item: any) => ({
     ...item,
     id: Math.random().toString(36).substr(2, 9),
-    learnedAt: Date.now() - 86400000,
+    learnedAt: Date.now(),
     reviewCount: 0,
     interval: 0,
     easiness: 2.5,
@@ -98,12 +92,21 @@ export const evaluateSentence = async (word: string, userSentence: string): Prom
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
     contents: `Mẹ chiên giòn chấm bài con viết: "${userSentence}" (từ: ${word}).
-    QUY TẮC NHẬN XÉT:
-    - Nếu đúng (>=80đ): Phải có câu "nở to hơn nở rộ rồi".
-    - Nếu sai (<80đ): Phải có câu "nở rộ nở to hơn rồi. Cẩn thận!".`,
+    QUY TẮC:
+    - Nếu score >= 80: Nhận xét có "nở to hơn nở rộ rồi".
+    - Nếu score < 80: Nhận xét là "nở rộ nở to hơn rồi. Cẩn thận!".`,
     config: { 
       responseMimeType: "application/json",
-      responseSchema: EVAL_SCHEMA
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          score: { type: Type.NUMBER },
+          feedback: { type: Type.STRING },
+          correction: { type: Type.STRING },
+          vietnamese: { type: Type.STRING }
+        },
+        required: ['score', 'feedback', 'correction', 'vietnamese']
+      }
     }
   });
   return JSON.parse(response.text.trim());
@@ -112,15 +115,16 @@ export const evaluateSentence = async (word: string, userSentence: string): Prom
 export const getDailyPerformanceReview = async (learnedWords: string[], stats: any): Promise<string> => {
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
-    contents: `Tổng kết ngày cho con. Nếu con học tốt hãy nói con "nở to hơn nở rộ rồi", nếu chưa tốt hãy dặn "nở rộ nở to hơn rồi. Cẩn thận!".`,
+    contents: `Tổng kết ngày cho con. Nếu tốt khen "nở to hơn nở rộ rồi", chưa tốt dặn "nở rộ nở to hơn rồi. Cẩn thận!".`,
   });
   return response.text;
 };
 
 export const generateReadingPassages = async (words: string[], grade: number): Promise<ReadingPassage[]> => {
+  const difficulty = grade >= 8 ? "IELTS Reading Passage" : "Short Academic Story";
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
-    contents: `Viết 2 mẩu chuyện tiếng Anh trình độ LỚP ${grade} (khối 5-9) chứa các từ: ${words.join(', ')}. JSON {title, contentEn, contentVi}.`,
+    contents: `Viết 2 mẩu chuyện tiếng Anh trình độ ${difficulty} cho học sinh LỚP ${grade} chứa các từ: ${words.join(', ')}. JSON {title, contentEn, contentVi}.`,
     config: {
       responseMimeType: "application/json",
       responseSchema: {
@@ -140,26 +144,12 @@ export const generateReadingPassages = async (words: string[], grade: number): P
   return JSON.parse(response.text.trim());
 };
 
-// Fix: Implement generateAIAvatar to allow kids to create their own custom profile pictures using gemini-2.5-flash-image
 export const generateAIAvatar = async (description: string): Promise<string> => {
   const response = await ai.models.generateContent({
     model: 'gemini-2.5-flash-image',
-    contents: {
-      parts: [
-        {
-          text: `Create a cute, friendly, kid-friendly cartoon-style profile avatar for an educational app. Character description: ${description}`,
-        },
-      ],
-    },
+    contents: { parts: [{ text: `Cute cartoon avatar: ${description}` }] }
   });
-
-  // Find the image part in the response candidates
   const part = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
-  if (part?.inlineData) {
-    const base64Data = part.inlineData.data;
-    const mimeType = part.inlineData.mimeType || 'image/png';
-    return `data:${mimeType};base64,${base64Data}`;
-  }
-  
-  throw new Error("Mẹ chưa vẽ xong bức tranh này rồi con ơi!");
+  if (part?.inlineData) return `data:${part.inlineData.mimeType || 'image/png'};base64,${part.inlineData.data}`;
+  throw new Error("Lỗi vẽ hình!");
 };

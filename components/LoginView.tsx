@@ -52,7 +52,7 @@ const LoginView: React.FC<Props> = ({ onLogin }) => {
     }, selectedGrade);
   };
 
-  const grades = [5, 6, 7, 8, 9];
+  const grades = [4, 5, 6, 7, 8, 9];
 
   return (
     <div className="min-h-screen bg-rose-500 flex items-center justify-center p-6 relative overflow-hidden">
@@ -61,7 +61,7 @@ const LoginView: React.FC<Props> = ({ onLogin }) => {
         <div className="text-center mb-8">
           <div className="text-5xl mb-4">🍳</div>
           <h1 className="text-3xl font-black text-slate-900 tracking-tight">Mẹ chiên giòn</h1>
-          <p className="text-slate-500 font-bold mt-1 text-sm">Học Tiếng Anh lớp 5-9 cực đỉnh!</p>
+          <p className="text-slate-500 font-bold mt-1 text-sm">Học Tiếng Anh lớp 4-9 cực đỉnh!</p>
         </div>
 
         {savedProfiles.length > 0 && (
@@ -84,7 +84,7 @@ const LoginView: React.FC<Props> = ({ onLogin }) => {
             placeholder="Nhập tên con yêu..."
             className="w-full p-4 bg-rose-50 border-2 border-rose-100 rounded-2xl text-lg font-bold outline-none focus:border-rose-500 transition-all"
           />
-          <div className="grid grid-cols-5 gap-2">
+          <div className="grid grid-cols-6 gap-2">
             {grades.map(g => (
               <button key={g} type="button" onClick={() => setSelectedGrade(g)} className={`py-3 rounded-xl font-black text-xs ${selectedGrade === g ? 'bg-rose-500 text-white shadow-lg' : 'bg-slate-50 text-slate-400'}`}>Lớp {g}</button>
             ))}

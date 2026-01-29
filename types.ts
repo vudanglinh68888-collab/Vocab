@@ -65,14 +65,6 @@ export const TOPICS: Topic[] = [
   'Space', 'Ocean', 'Dressing', 'Food', 'Daily Routine'
 ];
 
-export interface Badge {
-  id: string;
-  name: string;
-  icon: string;
-  description: string;
-  unlocked: boolean;
-}
-
 export interface User {
   id: string;
   name: string;
@@ -87,24 +79,30 @@ export interface User {
   };
 }
 
-export enum ViewMode {
-  CHATS = 'CHATS',
-  SETTINGS = 'SETTINGS'
-}
-
-export interface Contact {
-  id: string;
-  name: string;
-  avatar: string;
-  lastMessage?: string;
-  isAI?: boolean;
-  lastSeen?: string;
-}
-
 export interface Message {
   id: string;
   senderId: string;
   text: string;
   timestamp: Date;
   isMe: boolean;
+}
+
+/**
+ * Fix: Added ViewMode enum required by Sidebar.tsx
+ */
+export enum ViewMode {
+  CHATS = 'CHATS',
+  SETTINGS = 'SETTINGS'
+}
+
+/**
+ * Fix: Added Contact interface required by ChatList.tsx, ChatWindow.tsx, and CallOverlay.tsx
+ */
+export interface Contact {
+  id: string;
+  name: string;
+  avatar: string;
+  lastMessage: string;
+  isAI?: boolean;
+  lastSeen?: string;
 }
