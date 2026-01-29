@@ -33,6 +33,15 @@ export interface ReadingPassage {
   contentVi: string;
 }
 
+export interface VirtualGift {
+  id: string;
+  name: string;
+  icon: string;
+  unlockedAt: number;
+}
+
+export type LearningTrack = '1_MONTH' | '3_MONTHS' | '6_MONTHS';
+
 export interface StudyStats {
   totalLearned: number;
   currentDay: number;
@@ -41,6 +50,8 @@ export interface StudyStats {
   quizScore: number;
   totalSeconds: number;
   history: { date: string; seconds: number }[];
+  unlockedGifts: VirtualGift[];
+  currentTrack?: LearningTrack;
 }
 
 export type Topic = 
@@ -68,6 +79,7 @@ export interface User {
   email: string;
   avatar: string;
   status: 'online' | 'offline' | 'away';
+  grade?: number;
   preferences?: {
     dailyGoal: number;
     reminders: boolean;
@@ -76,19 +88,17 @@ export interface User {
 }
 
 export enum ViewMode {
-  HOME = 'home',
-  CHATS = 'chats',
-  SETTINGS = 'settings',
-  PROFILE = 'profile'
+  CHATS = 'CHATS',
+  SETTINGS = 'SETTINGS'
 }
 
 export interface Contact {
   id: string;
   name: string;
   avatar: string;
-  lastMessage: string;
-  lastSeen?: string;
+  lastMessage?: string;
   isAI?: boolean;
+  lastSeen?: string;
 }
 
 export interface Message {

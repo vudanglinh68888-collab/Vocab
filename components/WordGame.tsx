@@ -26,14 +26,13 @@ const WordGame: React.FC<Props> = ({ vocabList, onExit }) => {
 
   useEffect(() => {
     if (vocabList.length < 4) {
-      setErrorMsg("Bé ơi! Cần học ít nhất 4 từ vựng mới chơi được game Ghép Đôi nhé. Bé hãy quay lại học thêm vài từ nữa nha! 🎒");
+      setErrorMsg("Bé ơi! Cần học ít nhất 4 từ vựng mới chơi được game Ghép Đôi nhé. Bé hãy quay lại học thêm vài từ nữa cùng Mẹ chiên giòn nha! 🎒");
       return;
     }
     initGame();
   }, [vocabList]);
 
   const initGame = () => {
-    // Select up to 6 random words from the learned list
     const gameWords = [...vocabList].sort(() => 0.5 - Math.random()).slice(0, 6);
     
     const wordCards: Card[] = gameWords.map(w => ({
@@ -54,7 +53,6 @@ const WordGame: React.FC<Props> = ({ vocabList, onExit }) => {
       isMatched: false
     }));
 
-    // Shuffle all 12 cards together
     const allCards = [...wordCards, ...meaningCards].sort(() => 0.5 - Math.random());
     setCards(allCards);
     setScore(0);
@@ -66,7 +64,6 @@ const WordGame: React.FC<Props> = ({ vocabList, onExit }) => {
   const handleCardClick = (card: Card) => {
     if (card.isFlipped || card.isMatched || selectedCards.length === 2) return;
 
-    // Flip the clicked card
     const updatedCards = cards.map(c => 
       c.id === card.id ? { ...c, isFlipped: true } : c
     );
@@ -80,7 +77,6 @@ const WordGame: React.FC<Props> = ({ vocabList, onExit }) => {
       const [first, second] = newSelected;
 
       if (first.matchId === second.matchId) {
-        // MATCH FOUND
         setTimeout(() => {
           setCards(prev => prev.map(c => 
             c.matchId === first.matchId ? { ...c, isMatched: true } : c
@@ -88,14 +84,12 @@ const WordGame: React.FC<Props> = ({ vocabList, onExit }) => {
           setScore(s => s + 20);
           setSelectedCards([]);
           
-          // Check for game completion
           const remaining = updatedCards.filter(c => !c.isMatched && c.id !== first.id && c.id !== second.id).length;
           if (remaining === 0) {
             setGameOver(true);
           }
         }, 600);
       } else {
-        // NO MATCH
         setTimeout(() => {
           setCards(prev => prev.map(c => 
             c.id === first.id || c.id === second.id ? { ...c, isFlipped: false } : c
@@ -109,8 +103,8 @@ const WordGame: React.FC<Props> = ({ vocabList, onExit }) => {
   if (errorMsg) {
     return (
       <div className="bg-white p-12 rounded-[3rem] text-center shadow-2xl border-4 border-orange-200 animate-scaleIn">
-        <div className="text-7xl mb-6">🐻‍❄️</div>
-        <h2 className="text-2xl font-black text-slate-800 mb-4">Gấu Tutor thông báo</h2>
+        <div className="text-7xl mb-6">👩‍🍳</div>
+        <h2 className="text-2xl font-black text-slate-800 mb-4">Mẹ chiên giòn thông báo</h2>
         <p className="text-slate-600 font-bold mb-8 leading-relaxed px-4">{errorMsg}</p>
         <button onClick={onExit} className="px-10 py-4 bg-orange-500 text-white rounded-2xl font-black shadow-lg hover:bg-orange-600 transition-all active:scale-95">
           Vâng ạ, con đi học đây!
@@ -120,11 +114,13 @@ const WordGame: React.FC<Props> = ({ vocabList, onExit }) => {
   }
 
   if (gameOver) {
+    const feedback = score >= 100 ? "Giỏi hơn Cún gián rồi!" : "Gà ơi cố lên!";
     return (
       <div className="bg-white p-12 rounded-[3rem] text-center shadow-2xl border-4 border-emerald-200 animate-scaleIn">
         <div className="text-7xl mb-6">🎖️</div>
         <h2 className="text-4xl font-black text-emerald-600 mb-2">Thắng rồi!</h2>
-        <p className="text-xl font-bold text-slate-600 mb-8">
+        <p className="text-xl font-bold text-slate-600 mb-2">{feedback}</p>
+        <p className="text-lg font-bold text-slate-500 mb-8">
           Bé đã ghép đúng hết trong <span className="text-blue-500">{moves} lượt</span>.
           <br/>
           Ghi được <span className="text-orange-500">{score} điểm</span>!
@@ -145,7 +141,7 @@ const WordGame: React.FC<Props> = ({ vocabList, onExit }) => {
           <p className="text-3xl font-black text-yellow-400">{score}</p>
         </div>
         <div className="text-center hidden md:block">
-          <h3 className="text-lg font-black uppercase tracking-tighter">Magic Matcher</h3>
+          <h3 className="text-lg font-black uppercase tracking-tighter">Mẹ chiên giòn Match</h3>
           <p className="text-xs opacity-60">Luyện trí nhớ cùng từ vựng</p>
         </div>
         <div className="text-right">
@@ -169,12 +165,9 @@ const WordGame: React.FC<Props> = ({ vocabList, onExit }) => {
               w-full h-full relative transition-transform duration-500 transform-style-3d
               ${card.isFlipped ? 'rotate-y-180' : ''}
             `}>
-              {/* CARD BACK (HIDDEN FACE) */}
               <div className="absolute inset-0 backface-hidden bg-gradient-to-br from-indigo-500 to-purple-600 border-4 border-white rounded-3xl flex items-center justify-center shadow-lg">
                 <span className="text-4xl text-white/40 font-black">?</span>
               </div>
-
-              {/* CARD FRONT (CONTENT FACE) */}
               <div className={`
                 absolute inset-0 backface-hidden rotate-y-180 rounded-3xl flex items-center justify-center p-4 text-center shadow-xl border-4
                 ${card.type === 'word' ? 'bg-amber-100 border-amber-300 text-amber-900' : 'bg-emerald-100 border-emerald-300 text-emerald-900'}

@@ -62,7 +62,9 @@ const UnscrambleGame: React.FC<Props> = ({ words, onExit }) => {
       if (currentIdx < gameWords.length - 1) {
         setCurrentIdx(c => c + 1);
       } else {
-        alert(`Bà Bô: Con rất cố gắng! Tổng điểm Xếp Chữ: ${score + (current === target ? 15 : 0)}`);
+        const finalScore = score + (current === target ? 15 : 0);
+        const feedback = finalScore >= 80 ? "Giỏi hơn Cún gián rồi!" : "Gà ơi cố lên!";
+        alert(`Mẹ chiên giòn: ${feedback} Tổng điểm Xếp Chữ: ${finalScore}`);
         onExit();
       }
     }, 1500);

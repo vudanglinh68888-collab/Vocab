@@ -1,7 +1,6 @@
 
 import { GoogleGenAI, LiveServerMessage, Modality, Blob } from '@google/genai';
 
-// Base64 helper methods as per SDK requirements
 function decode(base64: string): Uint8Array {
   const binaryString = atob(base64);
   const bytes = new Uint8Array(binaryString.length);
@@ -72,7 +71,6 @@ export class GeminiLiveSession {
         }
       }
 
-      // Create a new instance right before use to ensure updated key
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       this.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       
@@ -80,7 +78,7 @@ export class GeminiLiveSession {
         model: 'gemini-2.5-flash-native-audio-preview-12-2025',
         callbacks: {
           onopen: () => {
-            console.log('Gemini Live Session Opened');
+            console.log('Mẹ chiên giòn Live Session Opened');
             const source = this.inputAudioContext.createMediaStreamSource(this.stream!);
             this.scriptProcessor = this.inputAudioContext.createScriptProcessor(4096, 1, 1);
             
@@ -125,18 +123,12 @@ export class GeminiLiveSession {
             }
           },
           onerror: (e: any) => {
-            console.error('Gemini Live Error:', e);
-            if (e.message?.includes('Requested entity was not found')) {
-               const aistudio = (window as any).aistudio;
-               if (aistudio && typeof aistudio.openSelectKey === 'function') {
-                 aistudio.openSelectKey();
-               }
-            }
+            console.error('Mẹ chiên giòn Live Error:', e);
             this.stopSession();
             onClose();
           },
           onclose: () => {
-            console.log('Gemini Live Session Closed');
+            console.log('Mẹ chiên giòn Live Session Closed');
             this.stopSession();
             onClose();
           }
@@ -146,19 +138,13 @@ export class GeminiLiveSession {
           speechConfig: {
             voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } }
           },
-          systemInstruction: 'You are a helpful and charismatic AI contact on a messaging app called GeminiConnect. You are talking to a user who just called you. Keep responses natural, short, and conversational like a real person on a phone.'
+          systemInstruction: 'Bạn là "Mẹ chiên giòn", một người mẹ vui tính và thông minh. Nếu người dùng nói đúng hoặc làm tốt, hãy khen "Giỏi hơn Cún gián rồi!". Nếu người dùng làm chưa đúng, hãy khích lệ "Gà ơi cố lên". Giữ phản hồi ngắn gọn, tự nhiên như đang trò chuyện điện thoại.'
         }
       });
 
       this.session = await sessionPromise;
     } catch (err: any) {
       console.error('Failed to start session:', err);
-      if (err.message?.includes('Requested entity was not found')) {
-        const aistudio = (window as any).aistudio;
-        if (aistudio && typeof aistudio.openSelectKey === 'function') {
-          await aistudio.openSelectKey();
-        }
-      }
       onClose();
     }
   }

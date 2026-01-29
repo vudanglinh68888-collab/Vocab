@@ -50,7 +50,7 @@ const SentencePractice: React.FC<Props> = ({ word, onSuccess }) => {
             className="w-full py-5 bg-purple-500 text-white rounded-3xl font-black shadow-xl hover:bg-purple-600 transition-all disabled:opacity-50 flex items-center justify-center gap-3 text-lg"
           >
             {loading ? <i className="fas fa-spinner animate-spin"></i> : <i className="fas fa-check-circle"></i>}
-            Đưa Bà Bô chấm bài
+            Đưa Mẹ chiên giòn chấm bài
           </button>
         ) : (
           <div className="space-y-8 animate-scaleIn">
@@ -66,7 +66,7 @@ const SentencePractice: React.FC<Props> = ({ word, onSuccess }) => {
                   </div>
                </div>
                <div className="text-4xl">
-                  {result.score >= 80 ? '🚀' : '⏰'}
+                  {result.score >= 80 ? '🚀' : '🐣'}
                </div>
             </div>
 

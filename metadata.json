@@ -1,6 +1,6 @@
 {
-  "name": "Bà Bô Tutor",
-  "description": "Ứng dụng học tiếng Anh cho bé cùng Bà Bô vui tính",
+  "name": "Mẹ chiên giòn",
+  "description": "Ứng dụng học tiếng Anh cho bé cùng Mẹ chiên giòn vui tính",
   "requestFramePermissions": [
     "microphone"
   ]

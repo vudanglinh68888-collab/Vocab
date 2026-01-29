@@ -55,7 +55,9 @@ const SpellingGame: React.FC<Props> = ({ words, onExit }) => {
       if (currentIdx < gameWords.length - 1) {
         setCurrentIdx(c => c + 1);
       } else {
-        alert(`Bà Bô: Giỏi lắm! Con đã hoàn thành Spelling Bee với ${score + (userInput === target ? 10 : 0)} điểm!`);
+        const finalScore = score + (userInput === target ? 10 : 0);
+        const feedback = finalScore >= 80 ? "Giỏi hơn Cún gián rồi!" : "Gà ơi cố lên!";
+        alert(`Mẹ chiên giòn: ${feedback} Con đã hoàn thành với ${finalScore} điểm!`);
         onExit();
       }
     }, 1500);
@@ -83,7 +85,7 @@ const SpellingGame: React.FC<Props> = ({ words, onExit }) => {
           <button onClick={() => speak(gameWords[currentIdx].word)} className="w-20 h-20 bg-indigo-500 text-white rounded-full flex items-center justify-center mx-auto shadow-lg hover:scale-105 active:scale-95 transition-all">
             <i className="fas fa-volume-up text-2xl"></i>
           </button>
-          <p className="text-sm font-bold text-slate-400">Nghe Bà Bô đọc rồi viết lại nhé!</p>
+          <p className="text-sm font-bold text-slate-400">Nghe Mẹ chiên giòn đọc rồi viết lại nhé!</p>
           <p className="text-xs font-black text-indigo-400 italic">Nghĩa: {gameWords[currentIdx].vietnameseDefinition}</p>
         </div>
 
