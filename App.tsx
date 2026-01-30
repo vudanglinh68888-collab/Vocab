@@ -14,8 +14,9 @@ import CategorizerGame from './components/CategorizerGame';
 import SentenceBuilder from './components/SentenceBuilder';
 import ReviewSection from './components/ReviewSection';
 import WeeklyQuizView from './components/WeeklyQuizView';
+import WelcomeView from './components/WelcomeView';
 
-type AppViewMode = 'dashboard' | 'lesson' | 'game-hub' | 'setup' | 'summary' | 'review' | 'placement' | 'weekly-quiz' | 'game-1' | 'game-2' | 'game-3' | 'game-4' | 'game-5' | 'game-6';
+type AppViewMode = 'welcome' | 'dashboard' | 'lesson' | 'game-hub' | 'setup' | 'summary' | 'review' | 'placement' | 'weekly-quiz' | 'game-1' | 'game-2' | 'game-3' | 'game-4' | 'game-5' | 'game-6';
 
 // Helper to get consistent local date string (YYYY-MM-DD)
 const getLocalDateString = () => {
@@ -26,12 +27,49 @@ const getLocalDateString = () => {
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [stats, setStats] = useState<StudyStats | null>(null);
-  const [viewMode, setViewMode] = useState<AppViewMode>('dashboard');
+  const [viewMode, setViewMode] = useState<AppViewMode>('welcome');
   const [loading, setLoading] = useState(false);
   const [dailyTimer, setDailyTimer] = useState(0);
 
-  // Load User & Stats
+  // Smart Timer Logic: Only runs when not in welcome/login and user exists
   useEffect(() => {
+    if (!user || !stats || viewMode === 'welcome' || viewMode === 'placement') return;
+    
+    const interval = setInterval(() => {
+      setDailyTimer(prev => prev + 1);
+    }, 1000);
+
+    // Auto-save timer every 30 seconds
+    const saveInterval = setInterval(() => {
+       if(user && stats) {
+         const updatedStats = { ...stats, dailyStudySeconds: dailyTimer };
+         // Don't trigger a full re-render of stats here, just save silently to LS
+         const userKey = `kid-db-${user.name.toLowerCase().trim()}`;
+         localStorage.setItem(userKey, JSON.stringify({ stats: updatedStats, grade: user.grade, proficiencyLevel: user.proficiencyLevel }));
+         
+         // Update history for current day if exists, for graph accuracy
+         updateHistorySilently(updatedStats, dailyTimer);
+       }
+    }, 30000);
+
+    return () => {
+      clearInterval(interval);
+      clearInterval(saveInterval);
+    };
+  }, [user, stats, dailyTimer, viewMode]);
+
+  const updateHistorySilently = (currentStats: StudyStats, seconds: number) => {
+    const today = getLocalDateString();
+    const historyIndex = currentStats.history.findIndex(h => h.date === today);
+    if (historyIndex >= 0) {
+        // We generally rely on 'completeLesson' to finalize history, 
+        // but for the chart to update "live" or save partial progress, we could update the last history entry
+        // However, to keep it simple and safe, we rely on dailyStudySeconds property
+    }
+  };
+
+  // 1. Handle "Continue Learning"
+  const handleContinue = () => {
     const savedUser = localStorage.getItem('kid-english-active-user');
     if (savedUser) {
       try {
@@ -50,39 +88,50 @@ const App: React.FC = () => {
           } else {
             setDailyTimer(parsedDB.stats.dailyStudySeconds || 0);
           }
+          setViewMode('dashboard');
         } else {
           setViewMode('placement'); 
         }
       } catch (e) {
         console.error("Error loading saved user", e);
         localStorage.removeItem('kid-english-active-user');
+        setViewMode('dashboard'); // Will trigger LoginView inside render
       }
+    } else {
+      // No active user, go to login (which is handled when user is null)
+      setViewMode('dashboard');
     }
-  }, []);
+  };
 
-  // Smart Timer Logic
-  useEffect(() => {
-    if (!user || !stats) return;
-    
-    const interval = setInterval(() => {
-      setDailyTimer(prev => prev + 1);
-    }, 1000);
+  // 2. Handle "Upload Project"
+  const handleImportProject = (data: any) => {
+    try {
+      const { user: importedUser, stats: importedStats } = data;
+      
+      // Update State
+      setUser(importedUser);
+      setStats(importedStats);
+      
+      // Update Timer
+      const today = getLocalDateString();
+      if (importedStats.lastStudyDate === today) {
+        setDailyTimer(importedStats.dailyStudySeconds || 0);
+      } else {
+        setDailyTimer(0);
+      }
 
-    // Auto-save timer every 30 seconds
-    const saveInterval = setInterval(() => {
-       if(user && stats) {
-         const updatedStats = { ...stats, dailyStudySeconds: dailyTimer };
-         // Don't trigger a full re-render of stats here, just save silently to LS
-         const userKey = `kid-db-${user.name.toLowerCase().trim()}`;
-         localStorage.setItem(userKey, JSON.stringify({ stats: updatedStats, grade: user.grade, proficiencyLevel: user.proficiencyLevel }));
-       }
-    }, 30000);
+      // Save to LocalStorage
+      localStorage.setItem('kid-english-active-user', JSON.stringify(importedUser));
+      const userKey = `kid-db-${importedUser.name.toLowerCase().trim()}`;
+      localStorage.setItem(userKey, JSON.stringify({ stats: importedStats, grade: importedUser.grade, proficiencyLevel: importedUser.proficiencyLevel }));
 
-    return () => {
-      clearInterval(interval);
-      clearInterval(saveInterval);
-    };
-  }, [user, stats, dailyTimer]);
+      alert(`Đã nạp thành công hành trang của ${importedUser.name}!`);
+      setViewMode('dashboard');
+    } catch (e) {
+      console.error(e);
+      alert("File dự án bị lỗi cấu trúc. Vui lòng kiểm tra lại.");
+    }
+  };
 
   const handleLogin = (userData: any, grade: number) => {
     const effectiveGrade = grade || 5;
@@ -175,8 +224,6 @@ const App: React.FC = () => {
     // Case 2: Check for Weekly Quiz (Day 7, 14, 21...)
     const currentDay = stats.learningState?.day || 1;
     if (currentDay > 1 && currentDay % 7 === 0 && !stats.learningState?.completed) {
-      // If it's a quiz day, and we haven't done it (represented by lesson completion logic here, or separate flag)
-      // For simplicity, we redirect to weekly quiz view mode
       setViewMode('weekly-quiz');
       return;
     }
@@ -185,7 +232,6 @@ const App: React.FC = () => {
     if (stats.learningState?.completed) {
       const nextDay = stats.learningState.day + 1;
       
-      // Check if NEXT day is a quiz day
       if (nextDay % 7 === 0) {
          setViewMode('weekly-quiz');
          return;
@@ -234,8 +280,12 @@ const App: React.FC = () => {
         topic: updatedLesson.topic, 
         words: updatedLesson.vocabulary.map(v => v.word),
         date: today,
-        seconds: 1800 
+        // Save the accumulated daily timer as the "seconds" for this record roughly
+        seconds: dailyTimer 
       });
+    } else {
+        // Update existing history entry with current timer
+        newHistory = newHistory.map(h => h.day === updatedLesson.day ? { ...h, seconds: dailyTimer } : h);
     }
 
     const updatedStats: StudyStats = {
@@ -256,12 +306,9 @@ const App: React.FC = () => {
     if (!stats || !stats.learningState) return;
     const today = getLocalDateString();
     
-    // Save weekly score
     const weekNum = Math.floor(stats.learningState.day / 7);
     const newWeeklyScores = [...(stats.weeklyScores || []), { week: weekNum, score, date: today }];
 
-    // Mark current lesson (quiz placeholder) as done or just move to next day
-    // We can simulate completing a "lesson" for the quiz day
     const updatedLesson = { ...stats.learningState, completed: true, completedAt: today };
     
     const updatedStats: StudyStats = {
@@ -282,7 +329,7 @@ const App: React.FC = () => {
       user: user,
       stats: { ...stats, dailyStudySeconds: dailyTimer },
       exportDate: new Date().toISOString(),
-      appVersion: "1.2.0"
+      appVersion: "1.3.0"
     };
     const blob = new Blob([JSON.stringify(dataToExport, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -306,7 +353,57 @@ const App: React.FC = () => {
     return `${m}:${s.toString().padStart(2, '0')}`;
   };
 
-  if (!user) return <LoginView onLogin={handleLogin} />;
+  // Helper to generate chart bars for the last 7 days
+  const renderStudyChart = () => {
+      if (!stats) return null;
+      const today = new Date();
+      const last7Days = Array.from({ length: 7 }, (_, i) => {
+          const d = new Date(today);
+          d.setDate(d.getDate() - (6 - i));
+          const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+          
+          // Find history entry for this date OR use current dailyTimer if it's today
+          let seconds = 0;
+          if (dateStr === getLocalDateString()) {
+             seconds = dailyTimer;
+          } else {
+             const entry = stats.history.find(h => h.date === dateStr);
+             seconds = entry ? (entry.seconds || 0) : 0;
+          }
+          return { label: `${d.getDate()}/${d.getMonth()+1}`, seconds };
+      });
+      
+      const maxSec = Math.max(...last7Days.map(d => d.seconds), 60); // min scale 1 min
+
+      return (
+          <div className="bg-white p-6 rounded-[2rem] border-2 border-slate-100 shadow-sm mt-6">
+              <h4 className="text-sm font-black text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-2">
+                 <i className="fas fa-chart-bar text-rose-500"></i> Thời gian học tuần qua
+              </h4>
+              <div className="flex items-end justify-between gap-2 h-32">
+                  {last7Days.map((d, i) => (
+                      <div key={i} className="flex-1 flex flex-col items-center gap-1 group">
+                           <div className="w-full bg-slate-100 rounded-t-lg relative overflow-hidden group-hover:bg-slate-200 transition-colors" style={{ height: '100%' }}>
+                               <div 
+                                  className="absolute bottom-0 left-0 right-0 bg-rose-400 rounded-t-lg transition-all duration-1000"
+                                  style={{ height: `${(d.seconds / maxSec) * 100}%` }}
+                               ></div>
+                           </div>
+                           <span className="text-[9px] font-bold text-slate-400">{d.label}</span>
+                      </div>
+                  ))}
+              </div>
+          </div>
+      );
+  };
+
+  // View Mode: Welcome
+  if (viewMode === 'welcome') {
+    return <WelcomeView onContinue={handleContinue} onImport={handleImportProject} />;
+  }
+
+  // View Mode: Login (If no user after continue)
+  if (!user && viewMode !== 'welcome') return <LoginView onLogin={handleLogin} />;
 
   if (viewMode === 'placement') {
     return <PlacementTestView onFinish={handlePlacementFinish} onSkip={handlePlacementSkip} />;
@@ -338,12 +435,12 @@ const App: React.FC = () => {
           <span className="text-xs font-black text-slate-600">Hôm nay: {formatTimer(dailyTimer)}</span>
         </div>
 
-        <div className="w-10 h-10 rounded-full border-2 border-rose-100 overflow-hidden"><img src={user.avatar} alt="avatar" /></div>
+        <div className="w-10 h-10 rounded-full border-2 border-rose-100 overflow-hidden"><img src={user?.avatar} alt="avatar" /></div>
       </header>
 
       <main className="max-w-4xl mx-auto p-6">
         {viewMode === 'dashboard' && (
-          <div className="space-y-10 animate-fadeIn">
+          <div className="space-y-8 animate-fadeIn">
             {/* Weekly Quiz Banner Check */}
             {(stats?.learningState?.day || 1) % 7 === 0 && !stats?.learningState?.completed && (
                <div className="bg-gradient-to-r from-indigo-500 to-purple-600 p-8 rounded-[3rem] text-white text-center shadow-xl animate-bounce">
@@ -358,7 +455,7 @@ const App: React.FC = () => {
               <div className="flex-1 text-center md:text-left space-y-4">
                 <h2 className="text-3xl font-black">Bài {stats?.learningState?.day}: {stats?.learningState?.topic}</h2>
                 <p className="text-sm font-bold text-indigo-500 uppercase tracking-widest">
-                  {user.proficiencyLevel ? `Chương trình: ${user.proficiencyLevel}` : 'Chương trình SGK Lớp 5'}
+                  {user?.proficiencyLevel ? `Chương trình: ${user.proficiencyLevel}` : 'Chương trình SGK Lớp 5'}
                 </p>
                 
                 <div className="w-full h-4 bg-slate-100 rounded-full overflow-hidden border border-slate-100"><div className="h-full bg-rose-500 transition-all" style={{ width: `${((stats?.learningState?.day || 1) / 90) * 100}%` }}></div></div>
@@ -373,13 +470,26 @@ const App: React.FC = () => {
               </div>
             </div>
 
-            <div className="bg-indigo-500 p-8 rounded-[3rem] text-white flex items-center justify-between cursor-pointer shadow-xl hover:scale-95 transition-all" onClick={() => setViewMode('game-hub')}>
-              <div><h3 className="text-2xl font-black">Xưởng Trò Chơi Ôn Tập</h3><p className="font-bold opacity-80">Gồm 6 khu vui chơi cực đỉnh!</p></div>
-              <div className="text-6xl">🎮</div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="bg-indigo-500 p-8 rounded-[2.5rem] text-white flex items-center justify-between cursor-pointer shadow-xl hover:scale-95 transition-all" onClick={() => setViewMode('game-hub')}>
+                  <div><h3 className="text-2xl font-black">Xưởng Game</h3><p className="font-bold opacity-80">Ôn tập cực vui!</p></div>
+                  <div className="text-6xl">🎮</div>
+                </div>
+                
+                <div className="bg-white p-8 rounded-[2.5rem] border-2 border-slate-100 shadow-sm flex flex-col justify-center cursor-pointer hover:border-emerald-200 transition-all" onClick={handleDownloadProject}>
+                   <div className="flex items-center gap-4 text-emerald-600 mb-2">
+                      <i className="fas fa-save text-3xl"></i>
+                      <h3 className="text-xl font-black text-slate-800">Lưu dự án</h3>
+                   </div>
+                   <p className="text-xs text-slate-400 font-bold">Tải file về để lưu tiến độ an toàn nhé.</p>
+                </div>
             </div>
+
+            {/* Study Stats Chart */}
+            {renderStudyChart()}
             
             {/* Quick stats for daily timer on mobile */}
-            <div className="md:hidden text-center text-slate-400 text-xs font-bold">
+            <div className="md:hidden text-center text-slate-400 text-xs font-bold pt-4">
                Đã học hôm nay: {formatTimer(dailyTimer)}
             </div>
           </div>
@@ -395,7 +505,7 @@ const App: React.FC = () => {
           />
         )}
 
-        {viewMode === 'weekly-quiz' && (
+        {viewMode === 'weekly-quiz' && user && (
           <WeeklyQuizView 
             weekNumber={Math.floor((stats?.learningState?.day || 7) / 7)}
             grade={user.grade}
