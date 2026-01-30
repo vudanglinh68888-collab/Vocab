@@ -13,10 +13,14 @@ const VocabularyCard: React.FC<Props> = ({ item, onToggleMastered }) => {
   const [feedback, setFeedback] = useState<{ text: string, score: number | null }>({ text: '', score: null });
 
   const speak = (text: string) => {
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'en-US';
-    window.speechSynthesis.speak(utterance);
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'en-US';
+      window.speechSynthesis.speak(utterance);
+    } else {
+      alert("Máy của con chưa hỗ trợ đọc giọng nói rồi!");
+    }
   };
 
   const calculateReadingScore = (target: string, transcript: string) => {
@@ -34,39 +38,53 @@ const VocabularyCard: React.FC<Props> = ({ item, onToggleMastered }) => {
   const startListening = (isSentence: boolean = false) => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      alert("Trình duyệt không hỗ trợ mẹ nghe con nói rồi!");
+      alert("Trình duyệt này chưa hỗ trợ Mẹ nghe con nói. Con thử dùng Chrome nhé!");
       return;
     }
 
-    const recognition = new SpeechRecognition();
-    recognition.lang = 'en-US';
-    recognition.interimResults = false;
-    
-    recognition.onstart = () => {
-      if (isSentence) setIsReadingSentence(true);
-      else setIsListening(true);
-      setFeedback({ text: 'Mẹ chiên giòn đang nghe con đây...', score: null });
-    };
-
-    recognition.onresult = (event: any) => {
-      const transcript = event.results[0][0].transcript;
-      const target = isSentence ? item.example : item.word;
-      const score = calculateReadingScore(target, transcript);
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.lang = 'en-US';
+      recognition.interimResults = false;
+      recognition.continuous = false;
       
-      setFeedback({ 
-        text: score >= 80 
-          ? `Nở to hơn nở rộ rồi! (Điểm: ${score}/100) - "${transcript}"` 
-          : `Nở rộ nở to hơn rồi. Cẩn thận! (Điểm: ${score}/100) - Con nói là: "${transcript}"`, 
-        score 
-      });
-    };
+      recognition.onstart = () => {
+        if (isSentence) setIsReadingSentence(true);
+        else setIsListening(true);
+        setFeedback({ text: 'Mẹ chiên giòn đang nghe con đây...', score: null });
+      };
 
-    recognition.onend = () => {
+      recognition.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript;
+        const target = isSentence ? item.example : item.word;
+        const score = calculateReadingScore(target, transcript);
+        
+        setFeedback({ 
+          text: score >= 80 
+            ? `Nở to hơn nở rộ rồi! (Điểm: ${score}/100) - "${transcript}"` 
+            : `Nở rộ nở to hơn rồi. Cẩn thận! (Điểm: ${score}/100) - Con nói là: "${transcript}"`, 
+          score 
+        });
+      };
+
+      recognition.onerror = (event: any) => {
+        console.error("Speech recognition error", event.error);
+        setFeedback({ text: 'Mẹ chưa nghe rõ, con nói lại nhé!', score: 0 });
+        setIsListening(false);
+        setIsReadingSentence(false);
+      };
+
+      recognition.onend = () => {
+        setIsListening(false);
+        setIsReadingSentence(false);
+      };
+
+      recognition.start();
+    } catch (e) {
+      console.error(e);
       setIsListening(false);
       setIsReadingSentence(false);
-    };
-
-    recognition.start();
+    }
   };
 
   return (
@@ -75,7 +93,7 @@ const VocabularyCard: React.FC<Props> = ({ item, onToggleMastered }) => {
         <div className="flex justify-between items-start">
           <div className="space-y-2">
             <span className="px-3 py-1 bg-white/20 rounded-full text-[10px] font-black uppercase tracking-widest">Lớp {item.grade} • {item.topic}</span>
-            <h2 className="text-6xl font-black tracking-tight">{item.word}</h2>
+            <h2 className="text-6xl font-black tracking-tight break-all">{item.word}</h2>
             <p className="font-mono text-xl opacity-80">/{item.ipa}/</p>
           </div>
           <div className="flex flex-col gap-3">

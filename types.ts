@@ -27,56 +27,67 @@ export interface VocabularyItem {
   nextReview: number;
 }
 
-export interface ReadingPassage {
-  title: string;
-  contentEn: string;
-  contentVi: string;
+export interface LessonState {
+  day: number;
+  lesson_id: number;
+  topic: string;
+  vocabulary: VocabularyItem[];
+  sentence_pattern: string;
+  completed: boolean;
+  completedAt?: string; // Lưu ngày hoàn thành (YYYY-MM-DD)
 }
 
 export interface VirtualGift {
   id: string;
   name: string;
   icon: string;
-  unlockedAt: number;
 }
-
-export type LearningTrack = '1_MONTH' | '3_MONTHS' | '6_MONTHS';
 
 export interface StudyStats {
   totalLearned: number;
-  currentDay: number;
   streak: number;
   lastStudyDate: string;
-  quizScore: number;
-  totalSeconds: number;
-  history: { date: string; seconds: number }[];
+  dailyStudySeconds: number; // Thời gian học hôm nay (giây)
+  weeklyScores: { week: number, score: number, date: string }[]; // Lịch sử điểm kiểm tra tuần
   unlockedGifts: VirtualGift[];
-  currentTrack?: LearningTrack;
+  learningState?: LessonState;
+  history: { day: number; topic: string; words: string[]; date?: string; seconds?: number }[];
+  currentTrack?: string;
 }
-
-export type Topic = 
-  | 'Family' | 'School' | 'Animals' | 'Colors' | 'Toys' 
-  | 'Hobbies' | 'Fruits' | 'Sports' | 'Nature' | 'Superheroes' 
-  | 'Space' | 'Ocean' | 'Dressing' | 'Food' | 'Daily Routine';
-
-export const TOPICS: Topic[] = [
-  'Family', 'School', 'Animals', 'Colors', 'Toys', 
-  'Hobbies', 'Fruits', 'Sports', 'Nature', 'Superheroes', 
-  'Space', 'Ocean', 'Dressing', 'Food', 'Daily Routine'
-];
 
 export interface User {
   id: string;
   name: string;
-  email: string;
   avatar: string;
-  status: 'online' | 'offline' | 'away';
-  grade?: number;
+  grade: number; // Vẫn giữ grade cho logic cũ
+  proficiencyLevel?: string; // B1, B2, C1, IELTS 5.0, etc.
+  email?: string;
+  status?: string;
   preferences?: {
     dailyGoal: number;
     reminders: boolean;
     soundEnabled: boolean;
   };
+}
+
+export interface ReadingPassage {
+  title: string;
+  contentEn: string;
+  contentVi: string;
+}
+
+export enum ViewMode {
+  CHATS = 'CHATS',
+  SETTINGS = 'SETTINGS'
+}
+
+export interface Contact {
+  id: string;
+  name: string;
+  avatar: string;
+  lastMessage: string;
+  lastSeen?: string;
+  isAI?: boolean;
 }
 
 export interface Message {
@@ -87,22 +98,10 @@ export interface Message {
   isMe: boolean;
 }
 
-/**
- * Fix: Added ViewMode enum required by Sidebar.tsx
- */
-export enum ViewMode {
-  CHATS = 'CHATS',
-  SETTINGS = 'SETTINGS'
-}
-
-/**
- * Fix: Added Contact interface required by ChatList.tsx, ChatWindow.tsx, and CallOverlay.tsx
- */
-export interface Contact {
-  id: string;
-  name: string;
-  avatar: string;
-  lastMessage: string;
-  isAI?: boolean;
-  lastSeen?: string;
+export interface PlacementQuestion {
+  id: number;
+  question: string;
+  options: string[];
+  correctAnswer: string; // The correct option text
+  difficulty: 'Easy' | 'Medium' | 'Hard';
 }
